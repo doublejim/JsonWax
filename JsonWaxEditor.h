@@ -1,24 +1,13 @@
 ﻿#ifndef JSONWAX_EDITOR_H
 #define JSONWAX_EDITOR_H
 
-//#include <QStringList>
 #include <QByteArray>
-//#include <QVariant>
-//#include <QMap>
-//#include <QList>
 #include <QDebug>
 
 /* TODO:
  * - serialization write.
  * - serialization read.
- * - parser continues after certain errors.
- * - Problem: Sørg for at dokumenter er gemt i UTF-8 codec, før du loader dem.
- *
- * - Problem: der er forskel på: \n i en tekstfil, og internt \n
- *
- *
- * get rid of toVariantMap and toVariantList.
- * Values like 1e-565 cannot be stored internally. This would be stored as a 0.
+ * - Problem: Make sure that documents are stored using UTF-8 codec, before loading them.
  */
 
 namespace JsonWaxInternals {
@@ -90,8 +79,7 @@ public:
     virtual ~JsonType(){}
     virtual QString toString( StringStyle style, int indentation = 0) = 0;
     virtual JsonType* insertWeak( const QVariant& key, JsonType* fresh_element) = 0;
-    virtual void replace( const QVariant& key, JsonType* element) = 0;
-    virtual void replaceWeak( const QVariant& key, JsonType* element) = 0;
+    virtual JsonType* insertStrong( const QVariant& key, JsonType* fresh_element) = 0;
     virtual void setValue( const QVariant& key, const QVariant& value) = 0;
     virtual JsonType* value( const QVariant& key) = 0;
     virtual bool remove( const QVariant& key) = 0;
@@ -162,7 +150,14 @@ public:
     {
         Q_UNUSED(key);
         delete fresh_element;
-        return 0;
+        return this;
+    }
+
+    JsonType* insertStrong( const QVariant& key, JsonType* fresh_element)
+    {
+        Q_UNUSED(key);
+        delete fresh_element;
+        return this;
     }
 
     JsonType* value( const QVariant& key)
@@ -183,18 +178,6 @@ public:
         return false;
     }
 
-    void replace( const QVariant& key, JsonType* element)
-    {
-        Q_UNUSED(key);
-        Q_UNUSED(element);
-    }
-
-    void replaceWeak( const QVariant& key, JsonType* element)
-    {
-        Q_UNUSED(key);
-        Q_UNUSED(element);
-    }
-
     bool contains( const QVariant& key)
     {
         Q_UNUSED(key);
@@ -209,6 +192,31 @@ public:
 
 class JsonObject : public JsonType
 {
+private:
+    JsonType* INSERTED_ELEMENT = 0;
+
+    bool insertBase( const QVariant& key, JsonType* fresh_element)
+    {
+        //if (key.type() != QVariant::String)
+        //    qDebug() << "invalid key for object: " << key;
+
+        JsonType* value = MAP.value( key.toString(), 0);
+
+        if (value != nullptr)
+        {
+            if (value->hasType != fresh_element->hasType)       // The value is of a wrong type.
+            {                                                   // Delete its data and use the fresh_element.
+                delete value;
+            } else {
+                INSERTED_ELEMENT = value;
+                return false;
+            }
+        }
+        MAP.insert( key.toString(), fresh_element);         // There was no value at the key.
+        INSERTED_ELEMENT = fresh_element;
+        return true;
+    }
+
 public:
     QMap<QString, JsonType*> MAP;
 
@@ -286,14 +294,20 @@ public:
 
     JsonType* insertWeak( const QVariant& key, JsonType* fresh_element)
     {
-        if (MAP.contains( key.toString()))
-        {
+        if (!insertBase( key, fresh_element))
             delete fresh_element;
-            return MAP.value( key.toString(), 0);
-        } else {
+
+        return INSERTED_ELEMENT;
+    }
+
+    JsonType* insertStrong( const QVariant& key, JsonType* fresh_element)
+    {
+        if (!insertBase( key, fresh_element))
+        {
+            delete INSERTED_ELEMENT;
             MAP.insert( key.toString(), fresh_element);
-            return fresh_element;
         }
+        return fresh_element;
     }
 
     void setValue( const QVariant& key, const QVariant& value)              // key is expected to be a string.
@@ -309,17 +323,6 @@ public:
                 MAP[ key.toString()]->setValue( {}, value);
         }
         else MAP.insert( key.toString(), new JsonValue(value));
-    }
-
-    void replace( const QVariant& key, JsonType* element)
-    {
-        remove( key);
-        MAP.insert( key.toString(), element);
-    }
-
-    void replaceWeak( const QVariant& key, JsonType* element)
-    {
-        MAP.insert( key.toString(), element);
     }
 
     JsonType* value( const QVariant& key)
@@ -356,6 +359,29 @@ public:
 
 class JsonArray : public JsonType
 {
+private:
+    JsonType* INSERTED_ELEMENT = 0;
+
+    bool insertBase( const QVariant& key, JsonType* fresh_element)
+    {
+        inflate( key.toInt() + 1);
+        JsonType* val = value( key);
+
+        if (val != nullptr)
+        {
+            if (val->hasType != fresh_element->hasType)
+            {
+                delete val;
+            } else {
+                INSERTED_ELEMENT = val;
+                return false;
+            }
+        }
+        ARRAY[ key.toInt()] = fresh_element;
+        INSERTED_ELEMENT = fresh_element;
+        return true;
+    }
+
 public:
     JsonArray()
     {
@@ -369,6 +395,20 @@ public:
     }
 
     QList<JsonType*> ARRAY;
+
+    bool isValidKey( const QVariant& key)
+    {
+        if (key.type() == QVariant::Int && key.toInt() >= 0)
+            return true;
+        //qDebug() << "invalid key for array: " << key;
+        return false;
+    }
+
+    void inflate( int elementCount)
+    {
+        while (ARRAY.size() < elementCount)
+            ARRAY.append( new JsonValue());
+    }
 
     QVariantList keys()
     {
@@ -420,44 +460,35 @@ public:
 
     JsonType* insertWeak( const QVariant& key, JsonType* fresh_element)
     {
-        if (key.toInt() < 0)
+        if (!isValidKey( key))
+            return 0;
+
+        if (!insertBase( key, fresh_element))
+            delete fresh_element;
+
+        return INSERTED_ELEMENT;
+    }
+
+    JsonType* insertStrong( const QVariant& key, JsonType* fresh_element)
+    {
+        if (!isValidKey( key))
+            return 0;
+
+        if (!insertBase( key, fresh_element))
         {
-            delete fresh_element;
-        } else if (key.toInt() < ARRAY.size()) {                // If the array is so large that the element already exists.
-            delete fresh_element;
-            return ARRAY.at( key.toInt());
-        } else {
-            while ( key.toInt() > ARRAY.size())                 // Insert null value until ARRAY has elements at all
-                ARRAY.append( new JsonValue());                 // positions except the position which is inserted at.
-
-            ARRAY.append( fresh_element);                       // We end up with an array of size key.toInt() - 1.
-            return fresh_element;
+            delete INSERTED_ELEMENT;
+            ARRAY[ key.toInt()] = fresh_element;
         }
-        return 0;
+        return fresh_element;
     }
 
-    void replace( const QVariant& key, JsonType* element)       // REQUIRES that ARRAY.at( key.toInt()) exists.
+    void setValue( const QVariant& key, const QVariant& value)    // Key is required to be an int.
     {
-        delete ARRAY.at( key.toInt());                          // Deallocates current.
-        ARRAY[ key.toInt()] = element;                          // Assigns new.
-    }
-
-    void replaceWeak( const QVariant& key, JsonType* element)
-    {
-        ARRAY[ key.toInt()] = element;
-    }
-
-    void setValue( const QVariant& key, const QVariant& value)    // The JsonArray requires that the key is an int.
-    {
-        int intkey = key.toInt();
-
-        if ( intkey < 0)
+        if (!isValidKey( key))
             return;
 
-        while ( intkey > ARRAY.size() - 1)
-        {
-            ARRAY.append( new JsonValue());
-        }
+        int intkey = key.toInt();
+        inflate( intkey + 1);
 
         if (ARRAY[ intkey]->hasType != Type::Value)
         {
@@ -470,17 +501,16 @@ public:
 
     JsonType* value( const QVariant& key)
     {
-        if (!contains( key))
+        if (!contains( key.toInt()))
             return 0;
         return ARRAY.at( key.toInt());
     }
 
     bool contains( const QVariant& key)
     {
-        if (key.type() != QVariant::Int)
-            return false;
-        else
-            return (key.toInt() >= 0 && key.toInt() < ARRAY.size());
+        if (isValidKey(key) && key.toInt() < ARRAY.size())
+            return true;
+        return false;
     }
 
     bool remove( const QVariant& key)
@@ -604,7 +634,7 @@ private:
     {
         if (keys.isEmpty())
         {
-            if (DATA->hasType != Array)
+            if (DATA->hasType != Type::Array)
             {
                 delete DATA;
                 DATA = new JsonArray();
@@ -616,22 +646,21 @@ private:
             return;
         }
 
-        JsonType* child = getPointer( keys);
-
-        if (child == nullptr)
+        JsonType* parent = DATA;
+        for (int i = 0; i < keys.size() - 1; ++i)
         {
-            child = new JsonArray();
-            child->setValue( 0, value);
-            insert( keys, child);
-        } else {
-            QVariantList keys_short = keys.mid( 0, keys.length()-1);
-            JsonType* parent = getPointer( keys_short);
+            parent = parent->insertWeak( keys.at(i), createJsonTypeForKey( keys.at( i + 1)));
+            if (parent == nullptr)                          // Abort if location doesn't exist.
+                return;
+        }
 
-            if (child->hasType != Type::Array)                  // If child isn't array.
-            {
-                child = new JsonArray();
-                parent->replace( keys.last(), child);
-            }
+        JsonType* child = parent->value( keys.last());
+
+        if ((child == nullptr) || (child->hasType != Type::Array))
+        {
+            parent = parent->insertStrong( keys.last(), new JsonArray());
+            parent->setValue( 0, value);
+        } else {
             if (isAppend)
                 static_cast<JsonArray*>(child)->ARRAY.append( new JsonValue(value));
             else
@@ -641,67 +670,29 @@ private:
 
     JsonType* insert( const QVariantList& keys, JsonType* input)
     {
-        //qDebug() << "all cache at start: " << CACHE.CACHE_KEYS;
-
         if (keys.isEmpty())
             return DATA;
 
         JsonType* parent = 0;
 
-        int cacheLevel = CACHE.getCacheLevel( keys);
-
-        if (cacheLevel == -1)
+        if (!keyMatchesJsonType( keys.first(), DATA))
         {
-            if (!keyMatchesJsonType( keys.first(), DATA))
-            {
-                delete DATA;
-                DATA = createJsonTypeForKey( keys.first());
-            }
-            parent = DATA;
-            CACHE.dropCacheAfterLevel(-1);
-            cacheLevel = 0;
-        } else {
-            if (keys.size() > 1)                                    // This could be prettier.
-            {
-                parent = CACHE.getCacheAt( cacheLevel);
-                CACHE.dropCacheAfterLevel( cacheLevel);
-                ++cacheLevel;
-            } else {
-                parent = DATA;
-            }
+            delete DATA;
+            DATA = createJsonTypeForKey( keys.first());
         }
 
-        JsonType* child = 0;
+        parent = DATA;
+        JsonType* fresh_element = 0;
 
-        for (int i = cacheLevel; i < keys.size() - 1; ++i)          // All but the last key.
+        for (int i = 0; i < keys.size() - 1; ++i)                       // All but the last key.
         {
-            // Laver objekter som måske bliver slettet med det samme.
-            child = createJsonTypeForKey( keys.at( i+1));           // Create child for the parent.
-            JsonType* peek = parent->value( keys.at(i));
+            fresh_element = createJsonTypeForKey( keys.at( i + 1));     // This object could be deleted immediately below, which is a waste.
+            parent = parent->insertWeak( keys.at(i), fresh_element);    // Reuses existing arrays and objects (deletes fresh_element if unused).
 
-            if ((peek != nullptr) && (peek->hasType != child->hasType))
-            {
-                parent->replace( keys.at(i), child);
-                parent = parent->value( keys.at(i));
-                CACHE.dropCacheAfterLevel(i);
-                //qDebug() << "drop cache after: " << keys.at(i).toString();
-            } else {                                                // If either the type is correct, or it's a nullptr.
-                parent = parent->insertWeak( keys.at(i), child);    // insertWeak takes care of deleting child if unused.
-                child = parent;
-            }
-            CACHE.appendCache( keys.at(i), child);                  // For (slightly) increased speed in future requests.
-            //qDebug() << "append cache: " << keys.at(i).toString();
+            if (parent == nullptr)                                      // Abort in case of failure.
+                return 0;
         }
-
-        // We've been through the other keys. Now we use the last key:
-        if (parent->contains( keys.last()))
-        {
-            parent->replace( keys.last(), input);
-            parent = input;
-        } else {
-            parent = parent->insertWeak( keys.last(), input);
-        }
-
+        parent->insertStrong( keys.last(), input);                      // Overwrites the last location.
         return parent;
     }
 
@@ -715,6 +706,7 @@ private:
             QVariant sourceValue = static_cast<JsonValue*>(jsonFrom)->VALUE;
             JsonType* jsonValue = new JsonValue( sourceValue);
             jsonTo.insert( keysTo, jsonValue);
+
             if (!keysTo.isEmpty())
                 keysTo.removeLast();
         } else {
@@ -752,20 +744,12 @@ public:
     {
         JsonType* element = DATA;
 
-        int cacheLevel = CACHE.getCacheLevel( keys);
-        if (cacheLevel > -1)
-            element = CACHE.getCacheAt( cacheLevel);
-        CACHE.dropCacheAfterLevel( cacheLevel);
-
-        for (int i = cacheLevel + 1; i < keys.size(); ++i)
+        for (int i = 0; i < keys.size(); ++i)
         {
             if (element->contains( keys.at(i)))
-            {
-                CACHE.appendCache( keys.at(i), element);
                 element = element->value( keys.at(i));
-            } else {
+            else
                 return nullptr;
-            }
         }
         return element;
     }
@@ -862,7 +846,7 @@ public:
         JsonType* element = getPointer( keys);
 
         if (element != nullptr)
-            if (element->hasType == Array)
+            if (element->hasType == Type::Array)
                 for (int i = 0; i < removeTimes; ++i)
                     element->remove(0);
     }
@@ -872,7 +856,7 @@ public:
         JsonType* element = getPointer( keys);
 
         if (element != nullptr)
-            if (element->hasType == Array)
+            if (element->hasType == Type::Array)
                 for (int i = 0; i < removeTimes; ++i)
                     element->remove( element->size() - 1);
     }
@@ -908,7 +892,6 @@ public:
         }                                                                       // (the weak version doesn't 'delete' the data).
 
         // Put in destination.
-
         if (keysTo.isEmpty())
         {
             delete editorTo->DATA;

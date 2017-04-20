@@ -1,10 +1,108 @@
 #ifndef JSONWAX_UNIT_TESTS_H
 #define JSONWAX_UNIT_TESTS_H
 
-#include "JsonWax.h"
+#include <QElapsedTimer>
+#include <QDirIterator>
+#include <QJsonDocument>
 #include <QDebug>
+#include "JsonWax.h"
 
 namespace JsonWaxInternals {
+
+class Speedtest
+{
+public:
+    static QList<QString> searchInDirectory(QString searchDirectory, QStringList fileFilter)
+    {
+        QDir dir = searchDirectory;
+
+        if (dir.exists() == false)
+            return QList<QString>();
+
+        QList<QString> foundFiles;
+
+        QDirIterator directories(searchDirectory, QDir::Files | QDir::NoSymLinks | QDir::NoDotAndDotDot, QDirIterator::Subdirectories);
+        while(directories.hasNext())
+        {
+            directories.next();
+
+            if (fileFilter.contains( directories.fileInfo().suffix(), Qt::CaseInsensitive)) // test each file suffix
+            {
+                QString path (directories.fileInfo().absoluteFilePath());
+                foundFiles.append( path);
+            }
+        }
+        return foundFiles;
+    }
+
+    static void runTest()
+    {
+        // Search for json files.
+        QString searchDirectory = qApp->applicationDirPath() + "/speedtest/";
+        QStringList fileFilter;
+        fileFilter << "json";
+        QList<QString> fileNames = searchInDirectory( searchDirectory, fileFilter);
+
+        // Load file contents.
+        QList<QByteArray> fileContents;
+
+        for (QString& fileName : fileNames)
+        {
+            QFile qfile( fileName);
+            QTextStream in (&qfile);
+            in.setCodec( "UTF-8");
+            qfile.open( QIODevice::ReadOnly);
+            fileContents.append( in.readAll().toUtf8());
+        }
+
+        //Measure time difference.
+        int totalOwnTime = 0;
+        int totalOwnFails = 0;
+        int totalQtTime = 0;
+        int totalQtFails = 0;
+        int docNumber = 0;
+
+        for (QByteArray& bytes : fileContents)
+        {
+            QElapsedTimer timer;
+            QElapsedTimer timer2;
+
+            JsonWax json;
+            timer.start();                          // TIME START
+            bool res1 = json.fromByteArray( bytes);
+            totalOwnTime += timer.nsecsElapsed();   // TIME END
+
+            if (res1 != true)
+            {
+                ++totalOwnFails;
+                qDebug() << "It failed at doc: " << fileNames.at( docNumber);
+                qDebug() << json.errorMsg();
+            }
+
+            QJsonDocument doc;
+            QJsonParseError* isok = new QJsonParseError();
+            timer2.start();                         // TIME START
+            doc.fromJson( bytes, isok);
+            totalQtTime += timer2.nsecsElapsed();   // TIME END
+
+            if (isok->error != 0)
+                ++totalQtFails;
+
+            delete isok;
+
+            ++docNumber;
+        }
+
+        qDebug() << "Results: " << fileContents.size() << "files.";
+        qDebug() << "JsonWax FAILS: " << totalOwnFails;
+        qDebug() << "JsonWax spent time: " << totalOwnTime << "ns";
+        qDebug() << "Qt FAILS: " << totalQtFails;
+        qDebug() << "Qt spent time: " << totalQtTime << "ns\n";
+        qDebug() << "JsonWax vs qt: " << 100.0 * totalOwnTime / totalQtTime << "%";
+    }
+};
+
+// =========================================================================================================
 
 class Tests
 {
@@ -402,6 +500,33 @@ public:
                                      "\"test\":[16,null,4]}}}}";
             description = "setValue tests.";
             checkWax( json, expectedString, description, passCount, failCount);
+
+            json.setValue({"this","is","a","test"},"truely");
+            expectedString = "{\"this\":{\"is\":{\"a\":"
+                              "{\"shirt\":\"yes!\","
+                              "\"test\":\"truely\"}}}}";
+            description = "setValue overwrite array 1.";
+            checkWax( json, expectedString, description, passCount, failCount);
+
+            json.setValue({"this","is","a",0},"nothing");
+            expectedString = "{\"this\":{\"is\":{\"a\":"
+                              "[\"nothing\"]}}}";
+            description = "setValue overwrite object 1.";
+            checkWax( json, expectedString, description, passCount, failCount);
+        }
+
+        {
+            JsonWax json;
+            json.setValue({"hej"},"yes");
+            json.setValue({2}, "no");
+            QString expectedString = "[null,null,\"no\"]";
+            description = "setValue overwrite object 2.";
+            checkWax( json, expectedString, description, passCount, failCount);
+
+            json.setValue({"you lose"}, "okay");
+            expectedString = "{\"you lose\":\"okay\"}";
+            description = "setValue overwrite array 2.";
+            checkWax( json, expectedString, description, passCount, failCount);
         }
 
         {
@@ -588,12 +713,32 @@ public:
             checkWax( json, QString("{\"melt\":{\"a\":\"hello2\",\"c\":[\"consistency2\",\"consistency\",\"consistency3\"],\"d\":\"hello4\"}}"), description, passCount, failCount);
         }
 
+        {
+            JsonWax json;
+            json.setValue({"3","1","2"},"okay!");
+            json.setValue({3}, "mark");
+            description = "array/object overwrites properly test 1.";
+            checkWax( json, QString("[null,null,null,\"mark\"]"), description, passCount, failCount);
+
+            json.setValue({"3"},"okay!");
+            description = "array/object overwrites properly test 2.";
+            checkWax( json, QString("{\"3\":\"okay!\"}"), description, passCount, failCount);
+
+            json.setValue({3,"1","2"},"salomon!");
+            description = "array/object overwrites properly test 3.";
+            checkWax( json, QString("[null,null,null,{\"1\":{\"2\":\"salomon!\"}}]"), description, passCount, failCount);
+
+            json.setValue({3,1,"2"},"fracture");
+            description = "array/object overwrites properly test 4.";
+            checkWax( json, QString("[null,null,null,[null,{\"2\":\"fracture\"}]]"), description, passCount, failCount);
+        }
+
         qDebug() << "---------------------------------------------";
         qDebug() << "=====    Editor tests PASSED: " << passCount;
         qDebug() << "=====    Editor tests FAILED: " << failCount;
     }
 
-    static void runTests()
+    static void runTest()
     {
         parserPositiveTests();
         parserNegativeTests();
