@@ -9,4 +9,6 @@ The files may be used under the terms of the GNU General Public License version 
 
 *** Could still use some more tests, however it is currently in working condition ***
 
+See documentation on the website:
+
 Website: https://doublejim.github.io/
