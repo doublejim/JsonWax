@@ -649,6 +649,9 @@ public:
             checkWax( json.size({}) == 6, description, passCount, failCount);
             checkWax( json, QString("[\"value\",null,null,null,null,\"valued space\"]"), description, passCount, failCount);
 
+            description = "size test 7: value has size of 1.";
+            checkWax( json.size({0}) == 1, description, passCount, failCount);
+
             json.remove({4});
             description = "size/remove test: remove array element decreases size by 1.";
             checkWax( json.size({}) == 5, description, passCount, failCount);
@@ -719,6 +722,33 @@ public:
 
         {
             JsonWax json;
+            json.setValue({0,"mega","mark"}, "1");
+            json.setValue({1,"giga","mark"}, "2");
+            json.setValue({2,"ultra","mark"}, "3");
+
+            json.popLast({});
+            description = "array popping test 1.";
+            checkWax( json, QString("[{\"mega\":{\"mark\":\"1\"}},{\"giga\":{\"mark\":\"2\"}}]"), description, passCount, failCount);
+
+            json.popFirst({});
+            description = "array popping test 2.";
+            checkWax( json, QString("[{\"giga\":{\"mark\":\"2\"}}]"), description, passCount, failCount);
+
+            json.popLast({});
+            description = "array popping test 3.";
+            checkWax( json, QString("[]"), description, passCount, failCount);
+
+            json.popLast({});
+            description = "array popping test 4: pop empty document.";
+            checkWax( json, QString("[]"), description, passCount, failCount);
+
+            json.popFirst({});
+            description = "array popping test 5: pop empty document.";
+            checkWax( json, QString("[]"), description, passCount, failCount);
+        }
+
+        {
+            JsonWax json;
             json.setValue({"3","1","2"},"okay!");
             json.setValue({3}, "mark");
             description = "array/object overwrites properly test 1.";
@@ -735,6 +765,14 @@ public:
             json.setValue({3,1,"2"},"fracture");
             description = "array/object overwrites properly test 4.";
             checkWax( json, QString("[null,null,null,[null,{\"2\":\"fracture\"}]]"), description, passCount, failCount);
+        }
+
+        {
+            JsonWax json;
+            json.setValue({"A", "B"}, "this");
+            json.setValue({"A", "C"}, "that");
+            json.setNull({"A"});
+            checkWax( json, QString("{\"A\":null}"), description, passCount, failCount);
         }
 
         qDebug() << "---------------------------------------------";

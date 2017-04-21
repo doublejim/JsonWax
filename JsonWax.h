@@ -39,7 +39,7 @@ public:
 
     QString errorMsg()
     {
-        return QString( "Error at character# " + QString::number( PARSER.LAST_ERROR_POS) + " : " + PARSER.errorToString());
+        return PARSER.errorToString();
     }
 
     int errorCode()
@@ -47,7 +47,7 @@ public:
         return PARSER.LAST_ERROR;
     }
 
-    int errorPos()  // May not be accurate.
+    int errorPos()  // May not be 100% accurate.
     {
         return PARSER.LAST_ERROR_POS;
     }
@@ -127,6 +127,11 @@ public:
     bool exists( const QVariantList& keys)
     {
         return EDITOR->exists( keys);
+    }
+
+    void setNull( const QVariantList& keys)
+    {
+        EDITOR->setValue( keys, QVariant());
     }
 
     int size( const QVariantList& keys)

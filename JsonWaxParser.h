@@ -27,7 +27,7 @@ public:
                     EXPECTED_STARTING_CURLY_OR_SQUARE_BRACKET};
 
     ErrorCode LAST_ERROR = OK;
-    int LAST_ERROR_POS = 0;
+    int LAST_ERROR_POS = -1;
 
     QString errorToString()
     {
@@ -626,6 +626,8 @@ public:
             {
                 return ERROR( CHARACTER_AFTER_END_OF_DOCUMENT);
             }
+                LAST_ERROR_POS = -1;
+                LAST_ERROR = OK;
                 return true;                                            // We are at the end of the document,
                                                                         // and the object or array was valid.
         }

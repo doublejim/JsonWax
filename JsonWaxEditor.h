@@ -2,7 +2,6 @@
 #define JSONWAX_EDITOR_H
 
 #include <QByteArray>
-#include <QDebug>
 
 /* TODO:
  * - serialization write.
@@ -115,7 +114,7 @@ public:
 
         QString result;
 
-        switch( VALUE.type())
+        switch(static_cast<QMetaType::Type>(VALUE.type()))
         {
         case QVariant::String:
         {
@@ -124,7 +123,7 @@ public:
             result.append('\"');
             break;
         }
-        case QVariant::Int: case QVariant::Double: case QVariant::Bool:
+        case QMetaType::Int: case QMetaType::Double: case QMetaType::Float: case QMetaType::Bool:
             result.append( VALUE.toString());
             break;
         case QVariant::Invalid:
@@ -194,9 +193,6 @@ private:
 
     bool insertBase( const QVariant& key, JsonType* fresh_element)
     {
-        //if (key.type() != QVariant::String)
-        //    qDebug() << "invalid key for object: " << key;
-
         JsonType* value = MAP.value( key.toString(), 0);
 
         if (value != nullptr)
@@ -397,7 +393,6 @@ public:
     {
         if (key.type() == QVariant::Int && key.toInt() >= 0)
             return true;
-        //qDebug() << "invalid key for array: " << key;
         return false;
     }
 
@@ -458,7 +453,10 @@ public:
     JsonType* insertWeak( const QVariant& key, JsonType* fresh_element)
     {
         if (!isValidKey( key))
+        {
+            delete fresh_element;
             return 0;
+        }
 
         if (!insertBase( key, fresh_element))
             delete fresh_element;
@@ -469,7 +467,10 @@ public:
     JsonType* insertStrong( const QVariant& key, JsonType* fresh_element)
     {
         if (!isValidKey( key))
+        {
+            delete fresh_element;
             return 0;
+        }
 
         if (!insertBase( key, fresh_element))
         {
