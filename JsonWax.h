@@ -42,7 +42,12 @@ public:
         return QString( "Error at character# " + QString::number( PARSER.LAST_ERROR_POS) + " : " + PARSER.errorToString());
     }
 
-    int errorPos()
+    int errorCode()
+    {
+        return PARSER.LAST_ERROR;
+    }
+
+    int errorPos()  // May not be accurate.
     {
         return PARSER.LAST_ERROR_POS;
     }
@@ -139,14 +144,14 @@ public:
         EDITOR->prepend( keys, value);
     }
 
-    void pop_first( const QVariantList& keys, int removeTimes = 1)
+    void popFirst( const QVariantList& keys, int removeTimes = 1)
     {
-        EDITOR->pop_first( keys, removeTimes);
+        EDITOR->popFirst( keys, removeTimes);
     }
 
-    void pop_last( const QVariantList& keys, int removeTimes = 1)
+    void popLast( const QVariantList& keys, int removeTimes = 1)
     {
-        EDITOR->pop_last( keys, removeTimes);
+        EDITOR->popLast( keys, removeTimes);
     }
 
     void copy( const QVariantList& keysFrom, QVariantList keysTo)

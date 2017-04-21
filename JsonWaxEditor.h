@@ -30,11 +30,8 @@ static QString toJsonString( const QString& input)
     for (const QChar& ch : input)
         switch( ch.unicode())
         {
-        //case '\\': case '\"': case '\b': case '\f': case '\n': case '\r': case '\t':
-        //    result.append( ch);
-        //    break;
-        case '\\': result.append('\\'); result.append('\\');  break;
-        case '\"': result.append("\\"); result.append('\"');  break;    // Breaks special characters up into two characters.
+        case '\\': result.append('\\'); result.append('\\');  break;    // Breaks special characters up into two characters.
+        case '\"': result.append("\\"); result.append('\"');  break;
         case '\b': result.append('\\'); result.append('b');   break;
         case '\f': result.append('\\'); result.append('f');   break;
         case '\n': result.append('\\'); result.append('n');   break;
@@ -797,7 +794,11 @@ public:
     void remove( const QVariantList& keys)
     {
         if (keys.isEmpty())
+        {
+            delete DATA;
+            DATA = new JsonObject();
             return;
+        }
 
         JsonType* element = getPointer( keys.mid(0, keys.size() - 1));  // Uses all keys except the last.
 
@@ -841,7 +842,7 @@ public:
         appendPrepend( keys, value, false);
     }
 
-    void pop_first( const QVariantList& keys, int removeTimes)      // Removes first element of array.
+    void popFirst( const QVariantList& keys, int removeTimes)      // Removes first element of array.
     {
         JsonType* element = getPointer( keys);
 
@@ -851,7 +852,7 @@ public:
                     element->remove(0);
     }
 
-    void pop_last( const QVariantList& keys, int removeTimes)       // Removes last element of array.
+    void popLast( const QVariantList& keys, int removeTimes)       // Removes last element of array.
     {
         JsonType* element = getPointer( keys);
 

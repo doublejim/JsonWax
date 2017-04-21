@@ -383,6 +383,7 @@ private:
 
     bool verifyInnerObject()
     {
+    inner_begin:
         POS_A = POSITION;                                               // For combining Parser with Editor.
 
         if (verifyString())
@@ -404,8 +405,7 @@ private:
                         case ',':
                             KEYS.removeLast();                          // For combining Parser with Editor.
                             if (expectChar('\"'))
-                                if (verifyInnerObject())
-                                    return true;
+                                goto inner_begin;
                             return false;
                         default:
                             return ERROR( EXPECTED_COMMA_OR_END_BRACE);
@@ -443,8 +443,10 @@ private:
         return ERROR( SUDDEN_END_OF_DOCUMENT);
     }
 
-    bool verifyInnerArray( int elementPosition = 0)
+    bool verifyInnerArray()
     {
+        int elementPosition = 0;
+    inner_begin:
         skipSpace();
         POS_A = POSITION;                                               // For combining Parser with Editor.
         KEYS.append( elementPosition);                                  // For combining Parser with Editor.
@@ -459,7 +461,8 @@ private:
                 {
                 case ',':
                     ++POSITION;
-                    return verifyInnerArray( ++elementPosition);
+                    ++elementPosition;
+                    goto inner_begin;
                 case ']':                                               // There's only one way to end the array: with a ]
                     ++POSITION;
                     return true;

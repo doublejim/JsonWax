@@ -659,12 +659,12 @@ public:
             checkWax( json.size({}) == 6, description, passCount, failCount);
             checkWax( json, QString("[\"value\",null,null,null,\"valued space\",\"salmon\"]"), description, passCount, failCount);
 
-            json.pop_first({});
+            json.popFirst({});
             description = "size/pop_first test: pop decreases size by 1.";
             checkWax( json.size({}) == 5, description, passCount, failCount);
             checkWax( json, QString("[null,null,null,\"valued space\",\"salmon\"]"), description, passCount, failCount);
 
-            json.pop_last({});
+            json.popLast({});
             description = "size/pop_last test: pop decreases size by 1.";
             checkWax( json.size({}) == 4, description, passCount, failCount);
             checkWax( json, QString("[null,null,null,\"valued space\"]"), description, passCount, failCount);
@@ -711,6 +711,10 @@ public:
             json.move({"melt","b"}, {"melt","c"});
             description = "move test 2.";
             checkWax( json, QString("{\"melt\":{\"a\":\"hello2\",\"c\":[\"consistency2\",\"consistency\",\"consistency3\"],\"d\":\"hello4\"}}"), description, passCount, failCount);
+
+            json.remove({});
+            description = "remove with empty keys removes everything.";
+            checkWax( json, QString("{}"), description, passCount, failCount);
         }
 
         {
