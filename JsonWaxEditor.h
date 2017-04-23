@@ -618,16 +618,6 @@ private:
         }
     }
 
-    JsonType* jsonTypeValue( const QVariantList& keys)
-    {
-        JsonType* element = getPointer( keys);
-
-        if (element == nullptr)
-            return new JsonValue();                                 // Return null QVariant if it doesn't exist.
-
-        return element;
-    }
-
     void appendPrepend( const QVariantList& keys, const QVariant& value, bool isAppend)
     {
         if (keys.isEmpty())
@@ -757,17 +747,17 @@ public:
         insert( keys, new JsonValue(value));
     }
 
-    QVariant value( const QVariantList& keys)
+    QVariant value( const QVariantList& keys, const QVariant& defaultValue)
     {
         if (keys.isEmpty())
-            return QVariant();
+            return defaultValue;
 
-        JsonType* element = jsonTypeValue( keys);
+        JsonType* element = getPointer( keys);
 
-        if (element->hasType != Type::Value)                    // Return null QVariant if the JsonType isn't Value.
-            return QVariant();
+        if (element == nullptr || element->hasType != Type::Value)      // Return default value if something is wrong with the found one.
+            return defaultValue;
 
-        return static_cast<JsonValue*>(element)->VALUE;         // Else cast to JsonValue and return its VALUE.
+        return static_cast<JsonValue*>(element)->VALUE;                 // Else cast to JsonValue and return its VALUE.
     }
 
     QString toString( StringStyle style, bool convertToCodePoints)

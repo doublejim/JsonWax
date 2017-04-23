@@ -179,9 +179,9 @@ public:
         EDITOR->move( keysFrom, jsonTo.EDITOR, keysTo);
     }
 
-    QVariant value( const QVariantList& keys)
+    QVariant value( const QVariantList& keys, const QVariant& defaultValue = QVariant())
     {
-        return EDITOR->value( keys);
+        return EDITOR->value( keys, defaultValue);
     }
 
     QVariantList keys( const QVariantList& keys)
