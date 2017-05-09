@@ -1,4 +1,5 @@
 # JsonWax
+#### Description
 JsonWax is a Qt C++ library for handling JSON-documents. It's an alternative to Qt's built-in set of JSON classes.
 
 The purpose is to shorten your JSON-handling code, and keep your mind on the structure of your document.
@@ -11,14 +12,12 @@ I have created easy-to-use functions for common operations such as: Loading the 
 
 Unfortunately this ease of use comes at the price of being slower than QJsonDocument ( ~ 3.3 times slower according to my tests - currently I'm only comparing the parse speed.) 
 
-You may use JsonWax under any of these licenses:
+#### You may use JsonWax under any of these licenses:
 
-GNU General Public License version 2.0       https://www.gnu.org/licenses/gpl-2.0.html
+GNU General Public License version 2.0 | https://www.gnu.org/licenses/gpl-2.0.html
 
-GNU General Public License version 3         https://www.gnu.org/licenses/gpl-3.0.html
+GNU General Public License version 3 | https://www.gnu.org/licenses/gpl-3.0.html
 
-*** Could still use some more tests, however it is currently in working condition ***
+### Could still use some more tests, however it is currently in working condition. 👍
 
-See documentation on the website:
-
-Website: https://doublejim.github.io/
+See documentation on the website: https://doublejim.github.io/
