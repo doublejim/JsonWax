@@ -11,7 +11,9 @@ I have created easy-to-use functions for common operations such as: Loading the 
 
 Unfortunately this ease of use comes at the price of being slower than QJsonDocument ( ~ 3.3 times slower according to my tests - currently I'm only comparing the parse speed.) 
 
-The files may be used under the terms of the GNU General Public License version 2.0 or the GNU General Public license version 3.
+You may use JsonWax under any of these licenses:
+GNU General Public License version 2.0       https://www.gnu.org/licenses/gpl-2.0.html
+GNU General Public License version 3         https://www.gnu.org/licenses/gpl-3.0.html
 
 *** Could still use some more tests, however it is currently in working condition ***
 
