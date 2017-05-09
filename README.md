@@ -12,7 +12,7 @@ I have created easy-to-use functions for common operations such as: Loading the 
 
 Unfortunately this ease of use comes at the price of being slower than QJsonDocument ( ~ 3.3 times slower according to my tests - currently I'm only comparing the parse speed.) 
 
-#### You may use JsonWax under any of these licenses:
+#### You may use JsonWax under the terms of any of these licenses:
 
 GNU General Public License version 2.0 | https://www.gnu.org/licenses/gpl-2.0.html
 
