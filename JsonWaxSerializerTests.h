@@ -10,10 +10,10 @@
 
 #include <QObject>
 #include <QDate>
+#include <QSize>
 #include <QColor>
 #include <QImage>
 #include <QFont>
-#include <QSize>
 
 class SerializerClass1 : public QObject
 {

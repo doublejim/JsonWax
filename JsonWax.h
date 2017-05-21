@@ -68,7 +68,7 @@ public:
     }
 
     template <class T>
-    T deserializeBytes( const QVariantList& keys, const T& defaultValue = T())
+    T deserializeBytes( const QVariantList& keys, const T defaultValue = T()) // LOOKIE HERE
     {
         if (keys.isEmpty())
             return defaultValue;
@@ -98,7 +98,7 @@ public:
     }
 
     template <class T>
-    T deserializeJson( const QVariantList& keys, T& defaultValue = T())
+    T deserializeJson( const QVariantList& keys, T defaultValue = T())  // LOOKIE HERE
     {
         if (keys.isEmpty())
             return defaultValue;    // defaultValue

@@ -959,7 +959,7 @@ public:
             QDateTime dateTime2 = QDateTime::currentDateTime();                                                     // LocalTime
             QDateTime dateTime3 = QDateTime(QDate(2017, 05, 19), QTime(13, 35), QTimeZone("Asia/Yekaterinburg"));   // TimeZone
             QDateTime dateTime4 = QDateTime::currentDateTime();                                                     // OffsetFromUTC
-            dateTime4.setUtcOffset(5800);
+            dateTime4.setOffsetFromUtc(5800);
 
             json.serializeToJson<QDateTime>({"alpha","date time","test1"}, dateTime1);
             json.serializeToJson<QDateTime>({"alpha","date time","test2"}, dateTime2);

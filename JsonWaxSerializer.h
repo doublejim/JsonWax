@@ -8,19 +8,22 @@
  * GNU General Public License version 3         https://www.gnu.org/licenses/gpl-3.0.html
  */
 
+#include <QtGlobal>
 #include <QVariantList>
 #include <QObject>
 #include <QDataStream>
 #include <QTextStream>
 #include <QMetaObject>
 #include <QMetaProperty>
-#include <QColor>
 #include <QSize>
 #include <QDate>
 #include <QTimeZone>
 #include <QRect>
 #include <QUrl>
 #include <QLine>
+#ifdef QT_GUI_LIB
+#include <QColor>
+#endif
 #include "JsonWaxEditor.h"
 
 namespace JsonWaxInternals {
@@ -73,7 +76,7 @@ public:
     }
 
     template <class T>
-    void deserializeBytes( QByteArray& serializedBytes, T& outputHere)      // If you don't want to create a copy constructor
+    void deserializeBytes( QByteArray serializedBytes, T& outputHere)       // If you don't want to create a copy constructor
     {                                                                       // for your QObject.
         QByteArray bytes = QByteArray::fromBase64( serializedBytes);
         QDataStream stream( &bytes, QIODevice::ReadOnly);
@@ -81,7 +84,7 @@ public:
     }
 
     template <class T>
-    T deserializeBytes( QByteArray& serializedBytes)
+    T deserializeBytes( QByteArray serializedBytes)
     {
         QByteArray bytes = QByteArray::fromBase64( serializedBytes);
         T result;
@@ -130,7 +133,7 @@ static void writeToSeEditor( QString entryName, T value)
 // =============================== TEXTSTREAM OVERLOAD ===============================
 
 // QColor
-
+#ifdef QT_GUI_LIB
 inline QTextStream& operator << (QTextStream &stream, const QColor &color)
 {
     stream << "#";
@@ -148,7 +151,7 @@ inline QTextStream& operator >> (QTextStream &stream, QColor &color)
     color.setNamedColor( sColor);
     return stream;
 }
-
+#endif
 // QDate
 
 inline QTextStream& operator << (QTextStream &stream, const QDate &date)
@@ -169,7 +172,12 @@ inline QTextStream& operator >> (QTextStream &stream, QDate &date)
 
 inline QTextStream& operator << (QTextStream &stream, const QTime &time)
 {
+    #if (QT_VERSION >= 0x050800)
     stream << time.toString(Qt::ISODateWithMs);
+    #else
+    stream << time.toString(Qt::ISODate);
+    #endif
+    //}
     return stream;
 }
 
@@ -177,7 +185,11 @@ inline QTextStream& operator >> (QTextStream &stream, QTime &time)
 {
     QString value;
     stream >> value;
+    #if (QT_VERSION >= 0x050800)
     time = QTime::fromString( value, Qt::ISODateWithMs);
+    #else
+    time = QTime::fromString( value, Qt::ISODate);
+    #endif
     return stream;
 }
 
