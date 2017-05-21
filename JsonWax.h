@@ -1,12 +1,20 @@
 #ifndef JSONWAX_H
 #define JSONWAX_H
 
+/* Original author: Nikolai S | https://github.com/doublejim
+ *
+ * You may use this file under the terms of any of these licenses:
+ * GNU General Public License version 2.0       https://www.gnu.org/licenses/gpl-2.0.html
+ * GNU General Public License version 3         https://www.gnu.org/licenses/gpl-3.0.html
+ */
+
 #include <QFile>
 #include <QTextStream>
 #include <QCoreApplication>
 #include <QDir>
 #include "JsonWaxParser.h"
 #include "JsonWaxEditor.h"
+#include "JsonWaxSerializer.h"
 
 class JsonWax
 {
@@ -15,11 +23,18 @@ private:
     JsonWaxInternals::Editor* EDITOR = 0;
     QString PROGRAM_PATH;
     QString FILENAME;
+    JsonWaxInternals::Serializer SERIALIZER;
 
 public:
     typedef JsonWaxInternals::StringStyle StringStyle;
     static const StringStyle Compact = JsonWaxInternals::StringStyle::Compact;
     static const StringStyle Readable = JsonWaxInternals::StringStyle::Readable;
+
+    typedef JsonWaxInternals::Type Type;
+    static const Type Array = JsonWaxInternals::Type::Array;
+    static const Type Null = JsonWaxInternals::Type::Null;
+    static const Type Object = JsonWaxInternals::Type::Object;
+    static const Type Value = JsonWaxInternals::Type::Value;
 
     JsonWax()
     {
@@ -37,9 +52,79 @@ public:
         delete EDITOR;
     }
 
-    QString errorMsg()
+    int append( const QVariantList& keys, const QVariant& value)
     {
-        return PARSER.errorToString();
+        return EDITOR->append( keys, value);
+    }
+
+    void copy( const QVariantList& keysFrom, QVariantList keysTo)
+    {
+        EDITOR->copy( keysFrom, EDITOR, keysTo);
+    }
+
+    void copy( const QVariantList& keysFrom, JsonWax& jsonTo, const QVariantList& keysTo)
+    {
+        EDITOR->copy( keysFrom, jsonTo.EDITOR, keysTo);
+    }
+
+    template <class T>
+    T deserializeBytes( const QVariantList& keys, const T& defaultValue = T())
+    {
+        if (keys.isEmpty())
+            return defaultValue;
+
+        JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
+
+        if (element == nullptr || element->hasType != Type::Value)              // Return default value if the found JsonType is not of type Value.
+            return defaultValue;
+
+        QVariant value = static_cast<JsonWaxInternals::JsonValue*>(element)->VALUE;
+        return SERIALIZER.deserializeBytes<T>( value.toString().toUtf8());
+    }
+
+    template <class T>
+    void deserializeBytes( T& outputHere, const QVariantList& keys)
+    {
+        if (keys.isEmpty())
+            return;
+
+        JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
+
+        if (element == nullptr || element->hasType != Type::Value)
+            return;
+
+        QVariant value = static_cast<JsonWaxInternals::JsonValue*>(element)->VALUE;
+        SERIALIZER.deserializeBytes<T>( value.toString().toUtf8(), outputHere);
+    }
+
+    template <class T>
+    T deserializeJson( const QVariantList& keys, T& defaultValue = T())
+    {
+        if (keys.isEmpty())
+            return defaultValue;    // defaultValue
+
+        JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
+
+        if (element == nullptr)                         // || element->hasType != Type::Value Return default value if the found JsonType is not of type Value.
+            return defaultValue;    // defaultValue
+
+        T value;
+        SERIALIZER.deserializeJson<T>( EDITOR, keys, value);
+        return value;               // A clean value with the deserialized data inserted.
+    }
+
+    template <class T>
+    void deserializeJson( T& outputHere, const QVariantList& keys)
+    {
+        if (keys.isEmpty())
+            return;
+
+        JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
+
+        if (element == nullptr || ( element->hasType != Type::Object && element->hasType != Type::Array ))
+            return;
+
+        SERIALIZER.deserializeJson<T>( EDITOR, keys, outputHere);
     }
 
     int errorCode()
@@ -47,9 +132,19 @@ public:
         return PARSER.LAST_ERROR;
     }
 
+    QString errorMsg()
+    {
+        return PARSER.errorToString();
+    }
+
     int errorPos()  // May not be 100% accurate.
     {
         return PARSER.LAST_ERROR_POS;
+    }
+
+    bool exists( const QVariantList& keys)
+    {
+        return EDITOR->exists( keys);
     }
 
     bool fromByteArray( const QByteArray& bytes)
@@ -58,6 +153,31 @@ public:
         delete EDITOR;
         EDITOR = PARSER.getEditorObject();
         return isWellFormed;
+    }
+
+    bool isArray( const QVariantList& keys)
+    {
+        return EDITOR->isArray( keys);
+    }
+
+    bool isNullValue( const QVariantList& keys)
+    {
+        return EDITOR->isNullValue( keys);
+    }
+
+    bool isObject( const QVariantList& keys)
+    {
+        return EDITOR->isObject( keys);
+    }
+
+    bool isValue( const QVariantList& keys)
+    {
+        return EDITOR->isValue( keys);
+    }
+
+    QVariantList keys( const QVariantList& keys)
+    {
+        return EDITOR->keys( keys);
     }
 
     bool loadFile( const QString& fileName)
@@ -85,22 +205,34 @@ public:
         return fromByteArray( in.readAll().toUtf8());
     }
 
-    bool saveAs( const QString& fileName, StringStyle style = Readable, bool convertToCodePoints = false, bool overwriteAllowed = true)
+    void move( const QVariantList& keysFrom, const QVariantList& keysTo)
     {
-        QDir dir (fileName);
-        QFile qfile;
-        if (dir.isRelative())
-            qfile.setFileName( PROGRAM_PATH + '/' + fileName);
-        else qfile.setFileName( fileName);
+        EDITOR->move( keysFrom, EDITOR, keysTo);
+    }
 
-        if (qfile.exists() && !overwriteAllowed)
-            return false;
+    void move( const QVariantList& keysFrom, JsonWax& jsonTo, const QVariantList& keysTo)
+    {
+        EDITOR->move( keysFrom, jsonTo.EDITOR, keysTo);
+    }
 
-        qfile.open( QIODevice::WriteOnly | QIODevice::Text);
-        QByteArray bytes = EDITOR->toByteArray( style, convertToCodePoints);
-        qint64 bytesWritten = qfile.write( bytes);
-        qfile.close();
-        return (bytesWritten == bytes.size());
+    void popFirst( const QVariantList& keys, int removeTimes = 1)
+    {
+        EDITOR->popFirst( keys, removeTimes);
+    }
+
+    void popLast( const QVariantList& keys, int removeTimes = 1)
+    {
+        EDITOR->popLast( keys, removeTimes);
+    }
+
+    void prepend( const QVariantList& keys, const QVariant& value)
+    {
+        EDITOR->prepend( keys, value);
+    }
+
+    void remove( const QVariantList& keys)
+    {
+        EDITOR->remove( keys);
     }
 
     bool save( StringStyle style = Readable, bool convertToCodePoints = false)
@@ -114,19 +246,40 @@ public:
         }
     }
 
-    void remove( const QVariantList& keys)
+    bool saveAs( const QString& fileName, StringStyle style = Readable, bool convertToCodePoints = false, bool overwriteAllowed = true)
     {
-        EDITOR->remove( keys);
+        QDir dir (fileName);
+        QFile qfile;
+        if (dir.isRelative())
+            qfile.setFileName( PROGRAM_PATH + '/' + fileName);
+        else qfile.setFileName( fileName);
+
+        if (qfile.exists() && !overwriteAllowed)
+            return false;
+
+        qfile.open( QIODevice::WriteOnly | QIODevice::Text);
+        QByteArray bytes = EDITOR->toByteArray( {}, style, convertToCodePoints);
+        qint64 bytesWritten = qfile.write( bytes);
+        qfile.close();
+        return (bytesWritten == bytes.size());
     }
 
-    void setValue( const QVariantList& keys, const QVariant& value)
+    template <class T>
+    void serializeToBytes( const QVariantList& keys, const T& value)
     {
-        EDITOR->setValue( keys, value);
+        EDITOR->setValue( keys, SERIALIZER.serializeToBytes<T>(value));
     }
 
-    bool exists( const QVariantList& keys)
+    template <class T>
+    void serializeToJson( const QVariantList& keys, const T& value)
     {
-        return EDITOR->exists( keys);
+        JsonWaxInternals::Editor* serializedJson = SERIALIZER.serializeToJson<T>(value);    // Serialize QObject or other data type as a JSON-document
+        serializedJson->move({0}, EDITOR, keys);                                            // with the data located at the first array position.
+    }                                                                                       // Move to this editor.
+
+    void setEmptyArray( const QVariantList& keys)
+    {
+        EDITOR->setEmptyArray( keys);
     }
 
     void setNull( const QVariantList& keys)
@@ -134,49 +287,29 @@ public:
         EDITOR->setValue( keys, QVariant());
     }
 
+    void setEmptyObject( const QVariantList& keys)
+    {
+        EDITOR->setEmptyObject( keys);
+    }
+
+    void setValue( const QVariantList& keys, const QVariant& value)
+    {
+        EDITOR->setValue( keys, value);
+    }
+
     int size( const QVariantList& keys)
     {
         return EDITOR->size( keys);
     }
 
-    int append( const QVariantList& keys, const QVariant& value)
+    QString toString( StringStyle style = Readable, bool convertToCodePoints = false, const QVariantList& keys = {})
     {
-        return EDITOR->append( keys, value);
+        return EDITOR->toString( style, convertToCodePoints, keys);
     }
 
-    void prepend( const QVariantList& keys, const QVariant& value)
+    Type type( const QVariantList& keys)
     {
-        EDITOR->prepend( keys, value);
-    }
-
-    void popFirst( const QVariantList& keys, int removeTimes = 1)
-    {
-        EDITOR->popFirst( keys, removeTimes);
-    }
-
-    void popLast( const QVariantList& keys, int removeTimes = 1)
-    {
-        EDITOR->popLast( keys, removeTimes);
-    }
-
-    void copy( const QVariantList& keysFrom, QVariantList keysTo)
-    {
-        EDITOR->copy( keysFrom, EDITOR, keysTo);
-    }
-
-    void copy( const QVariantList& keysFrom, JsonWax& jsonTo, const QVariantList& keysTo)
-    {
-        EDITOR->copy( keysFrom, jsonTo.EDITOR, keysTo);
-    }
-
-    void move( const QVariantList& keysFrom, const QVariantList& keysTo)
-    {
-        EDITOR->move( keysFrom, EDITOR, keysTo);
-    }
-
-    void move( const QVariantList& keysFrom, JsonWax& jsonTo, const QVariantList& keysTo)
-    {
-        EDITOR->move( keysFrom, jsonTo.EDITOR, keysTo);
+        return EDITOR->type( keys);
     }
 
     QVariant value( const QVariantList& keys, const QVariant& defaultValue = QVariant())
@@ -184,15 +317,6 @@ public:
         return EDITOR->value( keys, defaultValue);
     }
 
-    QVariantList keys( const QVariantList& keys)
-    {
-        return EDITOR->keys( keys);
-    }
-
-    QString toString( StringStyle style = Readable, bool convertToCodePoints = false)
-    {
-        return EDITOR->toString( style, convertToCodePoints);
-    }
 };
 
 #endif // JSONWAX_H

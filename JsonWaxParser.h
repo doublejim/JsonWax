@@ -1,6 +1,13 @@
 #ifndef JSONWAX_PARSER_H
 #define JSONWAX_PARSER_H
 
+/* Original author: Nikolai S | https://github.com/doublejim
+ *
+ * You may use this file under the terms of any of these licenses:
+ * GNU General Public License version 2.0       https://www.gnu.org/licenses/gpl-2.0.html
+ * GNU General Public License version 3         https://www.gnu.org/licenses/gpl-3.0.html
+ */
+
 #include <QByteArray>
 #include <QVariantList>
 #include <QDebug>
@@ -139,7 +146,7 @@ private:
         EDITOR->setValue( KEYS, value);
     }
 
-    bool ERROR( ErrorCode code)
+    bool error( ErrorCode code)
     {
         LAST_ERROR = code;
         LAST_ERROR_POS = POSITION;
@@ -159,7 +166,7 @@ private:
                 ++iteration;
                 continue;
             default:
-                return ERROR( NOT_A_HEX_VALUE);
+                return error( NOT_A_HEX_VALUE);
             }
         return true;
     }
@@ -179,7 +186,7 @@ private:
                 return true;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool number7()     // Acceptable position.
@@ -197,7 +204,7 @@ private:
                 return true;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool number6()     // Acceptable position.
@@ -217,7 +224,7 @@ private:
                 return true;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool number5()
@@ -233,7 +240,7 @@ private:
                 return false;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool number4()
@@ -251,7 +258,7 @@ private:
                 return false;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool number3()
@@ -267,7 +274,7 @@ private:
                 return false;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool number2()      // Acceptable position.
@@ -285,7 +292,7 @@ private:
                 return true;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool number1()
@@ -303,7 +310,7 @@ private:
                 return false;
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool verifyNumber()
@@ -315,27 +322,27 @@ private:
             case '-':
                 if (!number1()) {
                     if (!ERROR_REPORTED)
-                        return ERROR( NOT_A_NUMBER);
+                        return error( NOT_A_NUMBER);
                     return false;
                 } else return true;
             case '0':
                 if (!number2()) {
                     if (!ERROR_REPORTED)
-                        return ERROR( NOT_A_NUMBER);
+                        return error( NOT_A_NUMBER);
                     return false;
                 } else return true;
             case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
                 if (!number6()) {
                     if (!ERROR_REPORTED)
-                        return ERROR( NOT_A_NUMBER);
+                        return error( NOT_A_NUMBER);
                     return false;
                 } else return true;
             default:
                 --POSITION;
-                return ERROR( NOT_A_NUMBER);
+                return error( NOT_A_NUMBER);
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
     // ------------ END OF VERIFY NUMBER ------------
 
@@ -358,9 +365,9 @@ private:
         {
             if (BYTES->at( POSITION++) == character)
                 return true;
-            else return ERROR( UNEXPECTED_CHARACTER);
+            else return error( UNEXPECTED_CHARACTER);
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool expectExactStr( QString toExpect) // Except from the first character in the toExpect-string.
@@ -375,10 +382,10 @@ private:
                     return true;
                 continue;
             } else {
-                return ERROR( EXPECTED_BOOLEAN_OR_NULL);
+                return error( EXPECTED_BOOLEAN_OR_NULL);
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool verifyInnerObject()
@@ -408,10 +415,10 @@ private:
                                 goto inner_begin;
                             return false;
                         default:
-                            return ERROR( EXPECTED_COMMA_OR_END_BRACE);
+                            return error( EXPECTED_COMMA_OR_END_BRACE);
                         }
                     }
-                    return ERROR( SUDDEN_END_OF_DOCUMENT);
+                    return error( SUDDEN_END_OF_DOCUMENT);
                 }
             }
         }
@@ -432,15 +439,16 @@ private:
                     return verifyInnerObject();
                 case '}':
                     ++POSITION;
+                    EDITOR->setEmptyObject( KEYS);                      // For combining Parser with Editor (save empty object).
                     return true;
                 default:
-                    return ERROR( EXPECTED_QUOTE_OR_END_BRACE);
+                    return error( EXPECTED_QUOTE_OR_END_BRACE);
                 }
             } else {
-                return ERROR( SUDDEN_END_OF_DOCUMENT);
+                return error( SUDDEN_END_OF_DOCUMENT);
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool verifyInnerArray()
@@ -467,10 +475,10 @@ private:
                     ++POSITION;
                     return true;
                 default:
-                    return ERROR( EXPECTED_COMMA_OR_END_SQUARE_BRACKET);
+                    return error( EXPECTED_COMMA_OR_END_SQUARE_BRACKET);
                 }
             }
-            return ERROR( SUDDEN_END_OF_DOCUMENT);
+            return error( SUDDEN_END_OF_DOCUMENT);
         } else {
             return false;                                               // The error was already reported.
         }
@@ -484,13 +492,14 @@ private:
             switch( BYTES->at( POSITION))
             {
             case ']':
+                EDITOR->setEmptyArray( KEYS);                          // For combining Parser with Editor (save empty array).
                 ++POSITION;
                 return true;
             default:
                 return verifyInnerArray();
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool verifyString()
@@ -519,17 +528,17 @@ private:
                     }
                     else {
                         --POSITION;
-                        return ERROR( NOT_A_HEX_VALUE);
+                        return error( NOT_A_HEX_VALUE);
                     }
                 default:
-                    return ERROR( INVALID_STRING);
+                    return error( INVALID_STRING);
                 }
                 break;
             case '\"':
                 return true;                                            // End of string.
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
     bool verifyValue()
@@ -582,10 +591,10 @@ private:
                 return result;
             }
             default:
-                return ERROR( UNEXPECTED_CHARACTER);
+                return error( UNEXPECTED_CHARACTER);
             }
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 
 public:
@@ -618,20 +627,20 @@ public:
                     return false;
                 break;
             default:
-                return ERROR( EXPECTED_STARTING_CURLY_OR_SQUARE_BRACKET);
+                return error( EXPECTED_STARTING_CURLY_OR_SQUARE_BRACKET);
             }
 
             skipSpace();
             if (POSITION < SIZE)
             {
-                return ERROR( CHARACTER_AFTER_END_OF_DOCUMENT);
+                return error( CHARACTER_AFTER_END_OF_DOCUMENT);
             }
                 LAST_ERROR_POS = -1;
                 LAST_ERROR = OK;
                 return true;                                            // We are at the end of the document,
                                                                         // and the object or array was valid.
         }
-        return ERROR( SUDDEN_END_OF_DOCUMENT);
+        return error( SUDDEN_END_OF_DOCUMENT);
     }
 };
 }
