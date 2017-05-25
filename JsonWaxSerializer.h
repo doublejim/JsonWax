@@ -50,7 +50,7 @@ public:
     {
         QByteArray bytes;
         QDataStream stream( &bytes, QIODevice::WriteOnly);
-        stream.setVersion( QDataStream::Qt_5_8);
+        stream.setVersion( QDataStream::Qt_5_7);
         stream << input;
         return QString( bytes.toBase64());
     }
@@ -175,7 +175,7 @@ inline QTextStream& operator << (QTextStream &stream, const QTime &time)
     #if (QT_VERSION >= 0x050800)
     stream << time.toString(Qt::ISODateWithMs);
     #else
-    stream << time.toString(Qt::ISODate);
+    stream << time.toString(Qt::ISODate) << '.' << time.msec();
     #endif
     //}
     return stream;
