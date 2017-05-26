@@ -265,15 +265,15 @@ public:
     }
 
     template <class T>
-    void serializeToBytes( const QVariantList& keys, const T& value)
+    void serializeToBytes( const QVariantList& keys, const T& object)
     {
-        EDITOR->setValue( keys, SERIALIZER.serializeToBytes<T>(value));
+        EDITOR->setValue( keys, SERIALIZER.serializeToBytes<T>(object));
     }
 
     template <class T>
-    void serializeToJson( const QVariantList& keys, const T& value)
+    void serializeToJson( const QVariantList& keys, const T& object)
     {
-        JsonWaxInternals::Editor* serializedJson = SERIALIZER.serializeToJson<T>(value);    // Serialize QObject or other data type as a JSON-document
+        JsonWaxInternals::Editor* serializedJson = SERIALIZER.serializeToJson<T>(object);   // Serialize QObject or other data type as a JSON-document
         serializedJson->move({0}, EDITOR, keys);                                            // with the data located at the first array position.
     }                                                                                       // Move to this editor.
 
@@ -282,14 +282,14 @@ public:
         EDITOR->setEmptyArray( keys);
     }
 
-    void setNull( const QVariantList& keys)
-    {
-        EDITOR->setValue( keys, QVariant());
-    }
-
     void setEmptyObject( const QVariantList& keys)
     {
         EDITOR->setEmptyObject( keys);
+    }
+
+    void setNull( const QVariantList& keys)
+    {
+        EDITOR->setValue( keys, QVariant());
     }
 
     void setValue( const QVariantList& keys, const QVariant& value)

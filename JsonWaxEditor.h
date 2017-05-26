@@ -945,8 +945,8 @@ public:
 
         JsonType* element = getPointer( keys);
 
-        if ( element == nullptr)
-            return QString();
+        if ( element == nullptr || element->hasType == Type::Value)
+            return QString("{}");
 
         return element->toString( style, 1);
     }
