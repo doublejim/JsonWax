@@ -297,7 +297,7 @@ public:
         EDITOR->setValue( keys, value);
     }
 
-    int size( const QVariantList& keys)
+    int size( const QVariantList& keys = {})
     {
         return EDITOR->size( keys);
     }
