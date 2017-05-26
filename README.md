@@ -4,7 +4,7 @@ JsonWax is a Qt C++ library for handling JSON-documents. It's an alternative to 
 
 The purpose is to shorten your JSON-handling code, and keep your mind on the structure of your document.
 
-With JsonWax, you do not need to think about JSON-Arrays, JSON-Objects and JSON-Values. Essentially, finding a value in a JSON-document is like finding a file - where the path is a sequence of strings and/or numbers, which here is expressed as a QVariantList.
+With JsonWax, you do not need to think about JSON-Arrays, JSON-Objects and JSON-Values. Essentially, finding a value in a JSON-document is like finding a file, where the path is a sequence of strings and/or numbers, which here is expressed as a QVariantList.
 
 Instead of extracting objects from objects, you write the whole "directory path" in one line, which makes nested JSON-documents easy to manage.
 
