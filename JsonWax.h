@@ -68,7 +68,7 @@ public:
     }
 
     template <class T>
-    T deserializeBytes( const QVariantList& keys, const T defaultValue = T()) // LOOKIE HERE
+    T deserializeBytes( const QVariantList& keys, const T defaultValue = T())
     {
         if (keys.isEmpty())
             return defaultValue;
@@ -98,15 +98,12 @@ public:
     }
 
     template <class T>
-    T deserializeJson( const QVariantList& keys, T defaultValue = T())  // LOOKIE HERE
+    T deserializeJson( const QVariantList& keys, T defaultValue = T())
     {
-        if (keys.isEmpty())
-            return defaultValue;    // defaultValue
-
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
 
-        if (element == nullptr)                         // || element->hasType != Type::Value Return default value if the found JsonType is not of type Value.
-            return defaultValue;    // defaultValue
+        if (element == nullptr)
+            return defaultValue;
 
         T value;
         SERIALIZER.deserializeJson<T>( EDITOR, keys, value);
@@ -116,12 +113,12 @@ public:
     template <class T>
     void deserializeJson( T& outputHere, const QVariantList& keys)
     {
-        if (keys.isEmpty())
-            return;
+        //if (keys.isEmpty())
+        //    return;
 
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
 
-        if (element == nullptr || ( element->hasType != Type::Object && element->hasType != Type::Array ))
+        if (element == nullptr)   // || ( element->hasType != Type::Object && element->hasType != Type::Array ))
             return;
 
         SERIALIZER.deserializeJson<T>( EDITOR, keys, outputHere);
@@ -149,8 +146,9 @@ public:
 
     bool fromByteArray( const QByteArray& bytes)
     {
-        bool isWellFormed = PARSER.isWellformed( bytes);
+        // PARSER.deleteEditorObject();
         delete EDITOR;
+        bool isWellFormed = PARSER.isWellformed( bytes);
         EDITOR = PARSER.getEditorObject();
         return isWellFormed;
     }
@@ -187,7 +185,8 @@ public:
         QFile qfile;
         if (dir.isRelative())
             qfile.setFileName( PROGRAM_PATH + '/' + fileName);
-        else qfile.setFileName( fileName);
+        else
+            qfile.setFileName( fileName);
 
         if (!qfile.exists())
         {
@@ -252,7 +251,8 @@ public:
         QFile qfile;
         if (dir.isRelative())
             qfile.setFileName( PROGRAM_PATH + '/' + fileName);
-        else qfile.setFileName( fileName);
+        else
+            qfile.setFileName( fileName);
 
         if (qfile.exists() && !overwriteAllowed)
             return false;
