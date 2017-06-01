@@ -513,42 +513,42 @@ public:
             QElapsedTimer timer2;
             timer2.start();
             bool value2;
-            for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i)
+            for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i) //
                 value2 = json.value({"hello","world","this","is","a",i}).toBool();
 
             jsonWaxTimeSpent = timer2.nsecsElapsed();
 
-            if (value1 + value2)                               // Just using it for something, to avoid "unused" warning.
+            if (value1 + value2 == false)                               // Just using it for something, to avoid "unused" warning.
             qDebug() << "----- Reading values (depth 5) speed -----";
             qDebug() << "JsonWax spent time:" << jsonWaxTimeSpent * 1e-6<< "ms";
             qDebug() << "Qt spent time:" << qtTimeSpent * 1e-6<< "ms";
             qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent / qtTimeSpent << "%\n";
         }
 
-        /*{   // SERIALIZE TO BASE64 BYTE ARRAY. NOT POSSIBLE.
-            QList<QDateTime> dateTimeList;
+        {   // SERIALIZE TO BASE64 BYTE ARRAY.
+            QList<QRect> list;
             for (int i = 0; i < 20000; ++i)
-                dateTimeList.append( QDateTime::currentDateTime());
+                list.append( QRect(15,16,16,16));
 
+            // Serialize
             JsonWax json;
             QElapsedTimer timer;
-            int jsonWaxTimeSpent = 0;
+            int jsonWaxTimeSpent1 = 0;
             timer.start();
-            json.serializeToBytes({}, dateTimeList);
-            jsonWaxTimeSpent = timer.nsecsElapsed();
-            qDebug() << "SIZE:" << dateTimeList.size();
-            json.saveAs("OLD_BOOGIE.json");
-            qDebug() << "----- serializeToBytes speed -----";
-            qDebug() << "Serialize JsonWax spent time: " << jsonWaxTimeSpent * 1e-6 << "ms";
+            json.serializeToBytes({0}, list);
+            jsonWaxTimeSpent1 = timer.nsecsElapsed();
 
+            // Deserialize
+            int jsonWaxTimeSpent2 = 0;
             QElapsedTimer timer2;
             timer2.start();
-            dateTimeList = json.deserializeBytes<QList<QDateTime>>({});
-            jsonWaxTimeSpent = timer2.nsecsElapsed();
-            qDebug() << "Deserialize JsonWax spent time: " << jsonWaxTimeSpent * 1e-6 << "ms\n";
-            qDebug() << "SIZE:" << dateTimeList.size();
-            qDebug() << (preDateTimeList == dateTimeList);
-        }*/
+            list = json.deserializeBytes<QList<QRect>>({0});
+            jsonWaxTimeSpent2 = timer2.nsecsElapsed();
+
+            qDebug() << "----- serializeToBytes speed -----";
+            qDebug() << "Serialize JsonWax spent time: " << jsonWaxTimeSpent1 * 1e-6 << "ms";
+            qDebug() << "Deserialize JsonWax spent time: " << jsonWaxTimeSpent2 * 1e-6 << "ms\n";
+        }
 
         {   // SERIALIZE TO JSON.
             QList<QDateTime> dateTimeList;
@@ -579,7 +579,6 @@ public:
             timer.start();
             json.copy({"a"},{"b"});
             int jsonWaxTimeSpent = timer.nsecsElapsed();
-            qDebug() << "SIZE OF B:" << json.size({"b"});
             qDebug() << "----- Copy speed -----";
             qDebug() << "JsonWax copy spent time: " << jsonWaxTimeSpent * 1e-6 << "ms";
         }
@@ -941,7 +940,7 @@ public:
         int failCount = 0;
         QString description;
 
-        qDebug() << "----- Error messages from failed Editor tests: -----";
+        qDebug() << "----- Error messages from Editor tests: -----";
 
         {
             JsonWax json;
@@ -969,6 +968,18 @@ public:
             expectedString = "{\"this\":{\"is\":{\"a\":"
                               "[\"nothing\"]}}}";
             description = "setValue overwrite object 1.";
+            checkWax( json, expectedString, description, passCount, failCount);
+        }
+
+        {
+            JsonWax json;
+            json.setValue({"alpha"}, 12345678901234567890 );
+            json.setValue({"beta"},QChar('h'));
+            json.setValue({"gamma"},char('h'));
+            json.setValue({"hef"},uint(5));
+            json.setValue({"ief"},uchar(30));
+            QString expectedString = "{\"alpha\":12345678901234567890,\"beta\":\"h\",\"gamma\":104,\"hef\":5,\"ief\":30}";
+            description = "setValue with unusual input.";
             checkWax( json, expectedString, description, passCount, failCount);
         }
 
@@ -1006,6 +1017,20 @@ public:
             json.copy({"this","is","a"},{"this"});
             QString expectedString = "{\"this\":{\"shirt\":\"yes!\",\"test\":[16,null,4]}}";
             description = "copy test 1.";
+            checkWax( json, expectedString, description, passCount, failCount);
+        }
+
+        {
+            JsonWax json;
+            json.setValue({"agora",0},"okay!");
+            json.setValue({"agora",2}, 16864846846848646465);
+            json.setEmptyArray({"agora",3,"mister1"});
+            json.setEmptyObject({"agora",4,"mister2"});
+            json.setNull({"french","toast"});
+            json.copy({},{"result"});
+            QString expectedString = "{\"agora\":[\"okay!\",null,16864846846848646465,{\"mister1\":[]},{\"mister2\":{}}],\"french\":{\"toast\":null},"
+                                     "\"result\":{\"agora\":[\"okay!\",null,16864846846848646465,{\"mister1\":[]},{\"mister2\":{}}],\"french\":{\"toast\":null}}}";
+            description = "copy test 2. with empty objects and arrays";
             checkWax( json, expectedString, description, passCount, failCount);
         }
 

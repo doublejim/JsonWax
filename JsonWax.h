@@ -70,7 +70,7 @@ public:
     template <class T>
     T deserializeBytes( const QVariantList& keys, const T defaultValue = T())
     {
-        if (keys.isEmpty())
+        if (keys.isEmpty())         // Can't deserialize from root, since it's not a value.
             return defaultValue;
 
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
@@ -85,7 +85,7 @@ public:
     template <class T>
     void deserializeBytes( T& outputHere, const QVariantList& keys)
     {
-        if (keys.isEmpty())
+        if (keys.isEmpty())         // Can't deserialize from root, since it's not a value.
             return;
 
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
@@ -113,12 +113,9 @@ public:
     template <class T>
     void deserializeJson( T& outputHere, const QVariantList& keys)
     {
-        //if (keys.isEmpty())
-        //    return;
-
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
 
-        if (element == nullptr)   // || ( element->hasType != Type::Object && element->hasType != Type::Array ))
+        if (element == nullptr)
             return;
 
         SERIALIZER.deserializeJson<T>( EDITOR, keys, outputHere);
@@ -146,7 +143,6 @@ public:
 
     bool fromByteArray( const QByteArray& bytes)
     {
-        // PARSER.deleteEditorObject();
         delete EDITOR;
         bool isWellFormed = PARSER.isWellformed( bytes);
         EDITOR = PARSER.getEditorObject();
@@ -238,7 +234,7 @@ public:
     {
         if (FILENAME.isEmpty())
         {
-            qWarning("JsonWax-save warning: use saveAs() if you haven't loaded a .json file. This document wasn't saved.");
+            qWarning("JsonWax-save error: use saveAs() if you haven't loaded a .json file. This document wasn't saved.");
             return false;
         } else {
             return saveAs( FILENAME, style, convertToCodePoints, true);

@@ -13,7 +13,6 @@
 
 /* TODO:
  * - Problem: Make sure that documents are stored using UTF-8 codec, before loading them.
- * - When an int value is loaded from file, the QVariant stores it as a double.
  */
 
 /* There are 3 classes and an editor.
@@ -130,14 +129,17 @@ public:
 
         switch(static_cast<QMetaType::Type>(VALUE.type()))
         {
-        case QVariant::String:
+        case QVariant::String: case QMetaType::QChar:
         {
             result.append('\"');
             result.append( toJsonString( VALUE.toString()));
             result.append('\"');
             break;
         }
-        case QMetaType::Int: case QMetaType::Double: case QMetaType::LongLong: case QMetaType::Float: case QMetaType::Bool:
+        case QMetaType::Int: case QMetaType::UInt:
+        case QMetaType::Double: case QMetaType::Float:
+        case QMetaType::LongLong: case QMetaType::ULongLong:
+        case QMetaType::Bool:
             result.append( VALUE.toString());
             break;
         case QVariant::Invalid:
@@ -636,61 +638,59 @@ private:
         }
     }
 
-    bool copyData( JsonType* jsonFrom, Editor& jsonTo, QVariantList& keysTo) // Maybe just convert to string, then read it all, then use move.
+    bool copyData( JsonType* jsonFrom, Editor& jsonTo, QVariantList& keysTo)
     {
         if (jsonFrom == nullptr)
             return false;
 
-        if (jsonFrom->hasType == Type::Value)
+        if (jsonFrom->hasType == Type::Value)                               // If it's a Value.
         {
             QVariant sourceValue = static_cast<JsonValue*>(jsonFrom)->VALUE;
             JsonType* jsonValue = new JsonValue( sourceValue);
             jsonTo.insert( keysTo, jsonValue);
 
-            if (!keysTo.isEmpty())
-                keysTo.removeLast();
-        } else if (jsonFrom->size() == 0) {                                 // If it's not a value, it could be an empty Array or Object.
+        } else if (jsonFrom->size() == 0) {                                 // If it's not a Value, it could be an empty Array or Object.
             switch( jsonFrom->hasType)
             {
             case Type::Object: jsonTo.setEmptyObject( keysTo);  break;
             case Type::Array:  jsonTo.setEmptyArray( keysTo);   break;
-            default: break;
+            default: break;     // Can't happen. We've determined it's not a Value.
             }
-            if (!keysTo.isEmpty())
-                keysTo.removeLast();
-        } else {
-            for (const QVariant& key : jsonFrom->keys())
+        } else {                                                            // Else it's a non-empty Array or Object.
+            for (const QVariant& key : jsonFrom->keys())                    // Go through each of its children recursively.
             {
                 keysTo.append( key);
                 copyData( jsonFrom->value( key), jsonTo, keysTo);
             }
-            if (!keysTo.isEmpty())
-                keysTo.removeLast();
         }
+        if (!keysTo.isEmpty())
+            keysTo.removeLast();
+
         return true;
     }
 
-    void insert( const QVariantList& keys, JsonType* input)             // This is the most difficult function.
+    void insert( const QVariantList& keys, JsonType* input)             // This was the most difficult-to-create function.
     {
         if (keys.isEmpty())
         {
             if (input->hasType == Type::Value)                          // Root can't be set to a value. Nothing should happen.
+            {
+                qWarning("JsonWax-insert error: you attempted to save a value to the root of the JSON-document. This is impossible.");
                 return;
+            }
 
             delete DATA;
             DATA = input;
             return;
         }
 
-        JsonType* parent = nullptr;
-
-        if (!keyMatchesJsonType( keys.first(), DATA))
+        if (!keyMatchesJsonType( keys.first(), DATA))                   // The root element is of a wrong type.
         {
             delete DATA;
             DATA = createJsonTypeForKey( keys.first());
         }
 
-        parent = DATA;
+        JsonType* parent = DATA;
         JsonType* fresh_element = nullptr;
 
         for (int i = 0; i < keys.size() - 1; ++i)                       // All but the last key.
@@ -737,19 +737,19 @@ public:
         Editor tempEditor;
         JsonType* jsonFrom = getPointer(keysFrom);
 
-        if (jsonFrom == nullptr || (jsonFrom->hasType == Type::Value && keysTo.isEmpty()))      // This is because you can't copy a value to root.
+        if (jsonFrom == nullptr || (jsonFrom->hasType == Type::Value && keysTo.isEmpty()))      // This is because you can't copy a Value to root.
             return;
 
-        if (copyData( jsonFrom, tempEditor, tempKeysTo))                        // Copy into tempEditor
-            tempEditor.move({}, editor, keysTo);                                // Move to destination (overwrite if keysTo already exists).
+        if (copyData( jsonFrom, tempEditor, tempKeysTo))                                        // Copy into tempEditor
+            tempEditor.move({}, editor, keysTo);                                                // Move to destination (overwrite if keysTo already exists).
     }
 
     bool exists( const QVariantList& keys)
     {
-        if (keys.isEmpty())                                                     // The root object always exists.
+        if (keys.isEmpty())                                                                     // The root object always exists.
             return true;
 
-        JsonType* element = getPointer( keys.mid(0, keys.size() - 1));          // Uses all keys except the last.
+        JsonType* element = getPointer( keys.mid(0, keys.size() - 1));                          // Uses all keys except the last.
 
         if (element == nullptr)
             return false;
@@ -758,7 +758,7 @@ public:
 
     JsonType* getPointer( const QVariantList& keys)
     {
-        JsonType* element = DATA;                                               // Sets the starting point.
+        JsonType* element = DATA;                                                               // Sets the starting point.
 
         for (int i = 0; i < keys.size(); ++i)
         {
@@ -951,7 +951,7 @@ public:
         JsonType* element = getPointer( keys);
 
         if (element == nullptr || element->hasType != Type::Value)      // Return default value if the found JsonType is not of type Value.
-            return defaultValue;                                        // Root (keys.isEmpty()) can't have a value, since it's either an Object or Array.
+            return defaultValue;                                        // (Root can't have a value, since it's either an Object or Array.)
 
         return static_cast<JsonValue*>(element)->VALUE;                 // Else cast to JsonValue and return its VALUE.
     }

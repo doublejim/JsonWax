@@ -414,7 +414,7 @@ private:
 
         if (verifyString())
         {
-            KEYS.append( A_B_asVariant(QMetaType::QString));              // For combining Parser with Editor.
+            KEYS.append( A_B_asVariant(QMetaType::QString));            // For combining Parser with Editor.
 
             if (expectChar(':'))
             {
@@ -584,28 +584,28 @@ private:
                 --POSITION;
                 bool result = verifyNumber();
                 if (result)
-                    saveToEditor( A_B_asVariant( QMetaType::Int));       // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Int));      // [Editor]
                 return result;
             }
             case 't':
             {
                 bool result = expectExactStr("true");
                 if (result)
-                    saveToEditor( A_B_asVariant( QMetaType::Bool));      // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Bool));     // [Editor]
                 return result;
             }
             case 'f':
             {
                 bool result = expectExactStr("false");
                 if (result)
-                    saveToEditor( A_B_asVariant( QMetaType::Bool));      // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Bool));     // [Editor]
                 return result;
             }
             case 'n':
             {
                 bool result = expectExactStr("null");
                 if (result)
-                    saveToEditor( A_B_asVariant( QMetaType::Void));   // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Void));     // [Editor]
                 return result;
             }
             default:
