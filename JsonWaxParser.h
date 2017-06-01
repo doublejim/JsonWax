@@ -62,24 +62,25 @@ private:
     Editor* EDITOR = 0;
     const QByteArray* BYTES;
 
-    QVariantList KEYS;                                          // [Editor]
-    int POS_A, POSITION, SIZE;                                  // [Editor]
-    bool CONTAINS_ESCAPED_CHARACTERS = false;                   // [Editor]
+    QVariantList KEYS;                                                          // [Editor]
+    int POS_A, POSITION, SIZE;                                                  // [Editor]
+    bool CONTAINS_ESCAPED_CHARACTERS = false;                                   // [Editor]
+    bool NUMBER_CONTAINS_DOT_OR_E = false;                                      // [Editor]
     bool ERROR_REPORTED = false;
-    QList<EscapedCharacter> ESCAPED_CHARACTERS;                 // [Editor]
+    QList<EscapedCharacter> ESCAPED_CHARACTERS;                                 // [Editor]
 
-    QVariant A_B_asVariant(QVariant::Type saveAsType)           // [Editor]
+    QVariant A_B_asVariant(QMetaType::Type saveAsType)                          // [Editor]
     {
         QVariant result;
         int POS_B = POSITION;
 
         switch( saveAsType)
         {
-        case QVariant::String:                                  // Get rid of quotes, and replace \uXXXX unicode
-        {                                                       // code points, and other escaped characters, with
-            if (!CONTAINS_ESCAPED_CHARACTERS)                   // the proper characters. The escaped characters
-            {                                                   // were detected during parsing.
-                result = QString( BYTES->mid( POS_A, POS_B - POS_A - 1));   // The last character is a closing quotation mark.
+        case QMetaType::QString:                                                // Get rid of quotes, and replace \uXXXX unicode
+        {                                                                       // code points, and other escaped characters, with
+            if (!CONTAINS_ESCAPED_CHARACTERS)                                   // the proper characters. The escaped characters
+            {                                                                   // were detected during parsing.
+                result = QString( BYTES->mid( POS_A, POS_B - POS_A - 1));       // The last character is a closing quotation mark.
             } else {
                 QString str;
                 QString codepointAsHex;
@@ -90,7 +91,7 @@ private:
                     switch(ch.TYPE)
                     {
                     case EscapedCharacter::Type::ESCAPED_CHARACTER:
-                        str.append( BYTES->mid( left, ch.POS - left - 1));      // Until right before the back slash.
+                        str.append( BYTES->mid( left, ch.POS - left - 1));          // Until right before the back slash.
                         switch( BYTES->at( ch.POS))
                         {
                             case '\"':  str.append('\"');   break;
@@ -117,31 +118,41 @@ private:
                     default: break; // Can't happen.
                     }
                 }
-                str.append( BYTES->mid( left, POS_B - left - 1));       // The last character is a closing quotation mark.
+                str.append( BYTES->mid( left, POS_B - left - 1));                   // The last character is a closing quotation mark.
                 result = str;
                 CONTAINS_ESCAPED_CHARACTERS = false;
             }
             break;
         }
-        case QVariant::Int:
-            result = (BYTES->mid( POS_A, POS_B - POS_A)).toInt();
+        case QMetaType::Int:                                                        // It's not actually stored as an Int.
+        {                                                                           // The type of the number is determined here.
+            QByteArray bytesResult (BYTES->mid( POS_A, POS_B - POS_A));
+
+            if (NUMBER_CONTAINS_DOT_OR_E)
+            {
+                result = bytesResult.toDouble();
+            } else if (bytesResult.size() > 9) {
+                if (bytesResult.toLongLong() > 2147483647 || bytesResult.toLongLong() < -2147483647)
+                    result = bytesResult.toLongLong();
+                else
+                    result = bytesResult.toInt();
+            } else {
+                result = bytesResult.toInt();
+            }
             break;
-        case QVariant::Double:
-            result = (BYTES->mid( POS_A, POS_B - POS_A)).toDouble();
-            break;
-        case QVariant::Bool:
+        }
+        case QMetaType::Bool:
             if (BYTES->at(POS_A) == 't')
                 result = true;
             else
                 result = false;
             break;
-        default:
-            result = QVariant();
+        default: break; // Empty QVariant.
         }
         return result;
     }
 
-    void saveToEditor( QVariant value)                              // For combining Parser with Editor.
+    void saveToEditor( const QVariant& value)                                          // [Editor]
     {
         EDITOR->setValue( KEYS, value);
     }
@@ -198,6 +209,7 @@ private:
             case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
                 return number7();
             case 'e': case 'E':
+                NUMBER_CONTAINS_DOT_OR_E = true;
                 return number4();
             default:
                 --POSITION;
@@ -216,8 +228,10 @@ private:
             case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
                 return number6();
             case '.':
+                NUMBER_CONTAINS_DOT_OR_E = true;
                 return number3();
             case 'e': case 'E':
+                NUMBER_CONTAINS_DOT_OR_E = true;
                 return number4();
             default:
                 --POSITION;
@@ -284,8 +298,10 @@ private:
             switch (BYTES->at( POSITION++))
             {
             case 'e': case 'E':
+                NUMBER_CONTAINS_DOT_OR_E = true;
                 return number4();
             case '.':
+                NUMBER_CONTAINS_DOT_OR_E = true;
                 return number3();
             default:
                 --POSITION;
@@ -315,6 +331,8 @@ private:
 
     bool verifyNumber()
     {
+        NUMBER_CONTAINS_DOT_OR_E = false;
+
         while (POSITION < SIZE)
         {
             switch (BYTES->at( POSITION++))
@@ -365,7 +383,8 @@ private:
         {
             if (BYTES->at( POSITION++) == character)
                 return true;
-            else return error( UNEXPECTED_CHARACTER);
+            else
+                return error( UNEXPECTED_CHARACTER);
         }
         return error( SUDDEN_END_OF_DOCUMENT);
     }
@@ -395,7 +414,7 @@ private:
 
         if (verifyString())
         {
-            KEYS.append( A_B_asVariant(QVariant::String));              // For combining Parser with Editor.
+            KEYS.append( A_B_asVariant(QMetaType::QString));            // For combining Parser with Editor.
 
             if (expectChar(':'))
             {
@@ -525,8 +544,7 @@ private:
                         CONTAINS_ESCAPED_CHARACTERS = true;             // A valid code point always has the same length.
                         --POSITION;
                         break;                                          // Get out of inner, go to next character.
-                    }
-                    else {
+                    } else {
                         --POSITION;
                         return error( NOT_A_HEX_VALUE);
                     }
@@ -558,7 +576,7 @@ private:
                 ++POS_A;                                                // Skip the opening quotation mark. [Editor]
                 bool result = verifyString();
                 if (result)
-                    saveToEditor( A_B_asVariant( QVariant::String));    // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::QString));  // [Editor]
                 return result;
             }
             case '-': case '0': case '1': case '2': case '3': case '4': case '5': case '6': case '7': case '8': case '9':
@@ -566,28 +584,28 @@ private:
                 --POSITION;
                 bool result = verifyNumber();
                 if (result)
-                    saveToEditor( A_B_asVariant( QVariant::Double));    // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Int));      // [Editor]
                 return result;
             }
             case 't':
             {
                 bool result = expectExactStr("true");
                 if (result)
-                    saveToEditor( A_B_asVariant( QVariant::Bool));      // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Bool));     // [Editor]
                 return result;
             }
             case 'f':
             {
                 bool result = expectExactStr("false");
                 if (result)
-                    saveToEditor( A_B_asVariant( QVariant::Bool));      // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Bool));     // [Editor]
                 return result;
             }
             case 'n':
             {
                 bool result = expectExactStr("null");
                 if (result)
-                    saveToEditor( A_B_asVariant( QVariant::Invalid));   // [Editor]
+                    saveToEditor( A_B_asVariant( QMetaType::Void));     // [Editor]
                 return result;
             }
             default:
@@ -598,7 +616,6 @@ private:
     }
 
 public:
-
     Editor* getEditorObject()
     {
         return EDITOR;

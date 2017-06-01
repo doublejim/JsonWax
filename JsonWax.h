@@ -68,9 +68,9 @@ public:
     }
 
     template <class T>
-    T deserializeBytes( const QVariantList& keys, const T defaultValue = T()) // LOOKIE HERE
+    T deserializeBytes( const QVariantList& keys, const T defaultValue = T())
     {
-        if (keys.isEmpty())
+        if (keys.isEmpty())         // Can't deserialize from root, since it's not a value.
             return defaultValue;
 
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
@@ -85,7 +85,7 @@ public:
     template <class T>
     void deserializeBytes( T& outputHere, const QVariantList& keys)
     {
-        if (keys.isEmpty())
+        if (keys.isEmpty())         // Can't deserialize from root, since it's not a value.
             return;
 
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
@@ -98,15 +98,12 @@ public:
     }
 
     template <class T>
-    T deserializeJson( const QVariantList& keys, T defaultValue = T())  // LOOKIE HERE
+    T deserializeJson( const QVariantList& keys, T defaultValue = T())
     {
-        if (keys.isEmpty())
-            return defaultValue;    // defaultValue
-
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
 
-        if (element == nullptr)                         // || element->hasType != Type::Value Return default value if the found JsonType is not of type Value.
-            return defaultValue;    // defaultValue
+        if (element == nullptr)
+            return defaultValue;
 
         T value;
         SERIALIZER.deserializeJson<T>( EDITOR, keys, value);
@@ -116,12 +113,9 @@ public:
     template <class T>
     void deserializeJson( T& outputHere, const QVariantList& keys)
     {
-        if (keys.isEmpty())
-            return;
-
         JsonWaxInternals::JsonType* element = EDITOR->getPointer( keys);
 
-        if (element == nullptr || ( element->hasType != Type::Object && element->hasType != Type::Array ))
+        if (element == nullptr)
             return;
 
         SERIALIZER.deserializeJson<T>( EDITOR, keys, outputHere);
@@ -149,8 +143,8 @@ public:
 
     bool fromByteArray( const QByteArray& bytes)
     {
-        bool isWellFormed = PARSER.isWellformed( bytes);
         delete EDITOR;
+        bool isWellFormed = PARSER.isWellformed( bytes);
         EDITOR = PARSER.getEditorObject();
         return isWellFormed;
     }
@@ -187,7 +181,8 @@ public:
         QFile qfile;
         if (dir.isRelative())
             qfile.setFileName( PROGRAM_PATH + '/' + fileName);
-        else qfile.setFileName( fileName);
+        else
+            qfile.setFileName( fileName);
 
         if (!qfile.exists())
         {
@@ -239,7 +234,7 @@ public:
     {
         if (FILENAME.isEmpty())
         {
-            qWarning("JsonWax-save warning: use saveAs() if you haven't loaded a .json file. This document wasn't saved.");
+            qWarning("JsonWax-save error: use saveAs() if you haven't loaded a .json file. This document wasn't saved.");
             return false;
         } else {
             return saveAs( FILENAME, style, convertToCodePoints, true);
@@ -252,7 +247,8 @@ public:
         QFile qfile;
         if (dir.isRelative())
             qfile.setFileName( PROGRAM_PATH + '/' + fileName);
-        else qfile.setFileName( fileName);
+        else
+            qfile.setFileName( fileName);
 
         if (qfile.exists() && !overwriteAllowed)
             return false;

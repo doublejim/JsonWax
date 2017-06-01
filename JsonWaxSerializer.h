@@ -33,16 +33,30 @@ static JsonWaxInternals::Editor* SERIALIZE_EDITOR = 0;
 static JsonWaxInternals::Editor* DESERIALIZE_EDITOR = 0;
 static QVariantList SERIALIZE_KEYS;
 static QVariantList DESERIALIZE_KEYS;
+static QTextStream READ_STREAM;
+static QTextStream WRITE_STREAM;
 
 class Serializer
 {
-public:
-    Serializer(){
-        SERIALIZE_EDITOR = new JsonWaxInternals::Editor;
+private:
+    void prepareEditor()
+    {
+        SERIALIZE_TO_EDITOR = false;        // This value will change if the type was serialized to the Editor.
+
+        SERIALIZE_KEYS = {0};
+
+        if (SERIALIZE_EDITOR == nullptr)
+            SERIALIZE_EDITOR = new JsonWaxInternals::Editor;
+        else
+            SERIALIZE_EDITOR->clear();
     }
+
+public:
+    Serializer(){}
 
     ~Serializer(){
         delete SERIALIZE_EDITOR;
+        SERIALIZE_EDITOR = nullptr;
     }
 
     template <class T>
@@ -58,9 +72,7 @@ public:
     template <class T>
     JsonWaxInternals::Editor* serializeToJson( const T& input)
     {
-        SERIALIZE_TO_EDITOR = false;
-        SERIALIZE_EDITOR->clear();
-        SERIALIZE_KEYS = {0};
+        prepareEditor();
 
         QString serialized;
         QTextStream stream( &serialized, QIODevice::WriteOnly);
@@ -97,12 +109,12 @@ public:
     void deserializeJson( JsonWaxInternals::Editor* editor, const QVariantList& keys, T& output)
     {
         DESERIALIZE_EDITOR = editor;                                        // QObject uses the data in the DESERIALIZE_EDITOR to set its properties.
-        DESERIALIZE_KEYS = keys;                                            // The keys are used to locate the properties.
-
-        QString serializedValue;                                            // serializedValue is used if the serialized data is not a QObject.
+        DESERIALIZE_KEYS = keys;                                            // The keys are used to locate the properties, if it's a QObject,
+                                                                            // or the location, if it's a QMap or a QList.
+        QString serializedValue;                                            // serializedValue is used if the serialized data is just a string.
 
         if (editor->isValue( keys))                                         // In case it's a one-line string value.
-            serializedValue = editor->value(keys, QVariant()).toString();
+            serializedValue = editor->value(keys, QString()).toString();
 
         QTextStream stream( &serializedValue, QIODevice::ReadOnly);
         stream >> output;
@@ -114,10 +126,10 @@ public:
 template <class T>
 static T readFromDeEditor( QString entryName)
 {
-    QString strValue = DESERIALIZE_EDITOR->value( DESERIALIZE_KEYS + QVariantList{entryName}, "").toString();
-    QTextStream stream( &strValue, QIODevice::ReadOnly);
+    QString strValue = DESERIALIZE_EDITOR->value( DESERIALIZE_KEYS + QVariantList{entryName}, QVariant()).toString();
+    READ_STREAM.setString( &strValue, QIODevice::ReadOnly);
     T value;
-    stream >> value;
+    READ_STREAM >> value;
     return value;
 }
 
@@ -125,14 +137,14 @@ template <class T>
 static void writeToSeEditor( QString entryName, T value)
 {
     QString strValue;
-    QTextStream stream( &strValue, QIODevice::WriteOnly);
-    stream << value;
+    WRITE_STREAM.setString( &strValue, QIODevice::WriteOnly);
+    WRITE_STREAM << value;
     SERIALIZE_EDITOR->setValue( SERIALIZE_KEYS + QVariantList{ entryName}, strValue);
 }
 
 // =============================== TEXTSTREAM OVERLOAD ===============================
 
-// QColor
+// QColor (only if project has QT += gui)
 #ifdef QT_GUI_LIB
 inline QTextStream& operator << (QTextStream &stream, const QColor &color)
 {
@@ -173,7 +185,7 @@ inline QTextStream& operator >> (QTextStream &stream, QDate &date)
 inline QTextStream& operator << (QTextStream &stream, const QTime &time)
 {
     #if (QT_VERSION >= 0x050800)
-    stream << time.toString(Qt::ISODateWithMs);
+    stream << time.toString(Qt::ISODateWithMs);     // This format is only available from Qt 5.8.
     #else
     stream << time.toString(Qt::ISODate) << '.' << time.msec();
     #endif
@@ -186,7 +198,7 @@ inline QTextStream& operator >> (QTextStream &stream, QTime &time)
     QString value;
     stream >> value;
     #if (QT_VERSION >= 0x050800)
-    time = QTime::fromString( value, Qt::ISODateWithMs);
+    time = QTime::fromString( value, Qt::ISODateWithMs); // This format is only available from Qt 5.8.
     #else
     time = QTime::fromString( value, Qt::ISODate);
     #endif

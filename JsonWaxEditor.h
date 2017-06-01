@@ -13,12 +13,16 @@
 
 /* TODO:
  * - Problem: Make sure that documents are stored using UTF-8 codec, before loading them.
- * - When an int value is loaded from file, the QVariant stores it as a double.
+ */
+
+/* There are 3 classes and an editor.
+ * Object, Array and Value implement functions from "JsonType".
+ * Objects and Arrays use polymorphism to contain any of the 3 types.
  */
 
 namespace JsonWaxInternals
 {
-// ------------------------
+// -------------------------------- STATIC THINGS --------------------------------
 
     enum Type {Value, Object, Array, Null};
     enum StringStyle {Compact, Readable};
@@ -62,7 +66,7 @@ static QString toJsonString( const QString& input)
     return result;
 }
 
-// -------------------------------------------------
+// ------------------------- JSON TYPES -------------------------
 
 class JsonType
 {
@@ -125,14 +129,17 @@ public:
 
         switch(static_cast<QMetaType::Type>(VALUE.type()))
         {
-        case QVariant::String:
+        case QVariant::String: case QMetaType::QChar:
         {
             result.append('\"');
             result.append( toJsonString( VALUE.toString()));
             result.append('\"');
             break;
         }
-        case QMetaType::Int: case QMetaType::Double: case QMetaType::Float: case QMetaType::Bool:
+        case QMetaType::Int: case QMetaType::UInt:
+        case QMetaType::Double: case QMetaType::Float:
+        case QMetaType::LongLong: case QMetaType::ULongLong:
+        case QMetaType::Bool:
             result.append( VALUE.toString());
             break;
         case QVariant::Invalid:
@@ -168,7 +175,7 @@ public:
     JsonType* value( const QVariant& key)
     {
         Q_UNUSED(key);
-        return 0;
+        return nullptr;
     }
 
     bool remove( const QVariant& key)
@@ -214,7 +221,7 @@ private:
                 return false;
             }
         }
-        MAP.insert( key.toString(), fresh_element);         // There was no value at the key.
+        MAP.insert( key.toString(), fresh_element);             // There was no value at the key.
         INSERTED_ELEMENT = fresh_element;
         return true;
     }
@@ -294,6 +301,13 @@ public:
         return result;
     }
 
+    bool isValidKey( const QVariant& key)
+    {
+        if (key.type() == QVariant::String)
+            return true;
+        return false;
+    }
+
     JsonType* insertWeak( const QVariant& key, JsonType* fresh_element)
     {
         if (!insertBase( key, fresh_element))
@@ -320,29 +334,31 @@ public:
             {
                 remove( key);                                               // It deletes any existing object or array.
                 MAP.insert( key.toString(), new JsonValue(value));
-            }
-            else
+            } else {
                 MAP[ key.toString()]->setValue( {}, value);
+            }
+        } else {
+        MAP.insert( key.toString(), new JsonValue(value));
         }
-        else MAP.insert( key.toString(), new JsonValue(value));
     }
 
     JsonType* value( const QVariant& key)
     {
-        return MAP.value( key.toString(), 0);
+        if (isValidKey(key))
+            return MAP.value( key.toString(), nullptr);
+        return nullptr;
     }
 
     bool contains( const QVariant& key)
     {
         if (key.type() != QVariant::String)
             return false;
-        else
-            return MAP.contains( key.toString());
+        return MAP.contains( key.toString());
     }
 
     bool remove( const QVariant& key)
     {
-        delete MAP.value( key.toString(), 0);
+        delete MAP.value( key.toString(), nullptr);
         int i = MAP.remove( key.toString());
         return i==0 ? false : true;
     }
@@ -461,10 +477,10 @@ public:
 
     JsonType* insertWeak( const QVariant& key, JsonType* fresh_element)
     {
-        if (!isValidKey( key))
+        if (!isValidKey( key))      // Can I just assume that it's valid?
         {
             delete fresh_element;
-            return 0;
+            return nullptr;
         }
 
         if (!insertBase( key, fresh_element))
@@ -475,7 +491,7 @@ public:
 
     JsonType* insertStrong( const QVariant& key, JsonType* fresh_element)
     {
-        if (!isValidKey( key))
+        if (!isValidKey( key))      // Can I just assume that it's valid?
         {
             delete fresh_element;
             return 0;
@@ -508,9 +524,9 @@ public:
 
     JsonType* value( const QVariant& key)
     {
-        if (!contains( key.toInt()))
-            return 0;
-        return ARRAY.at( key.toInt());
+        if (contains( key))
+            return ARRAY.at( key.toInt());
+        return nullptr;
     }
 
     bool contains( const QVariant& key)
@@ -548,47 +564,10 @@ public:
 
 // ---------------------------------------------------------
 
-class Cache     // Currently not being used.
-{
-public:
-    QList<JsonType*> CACHE;
-    QVariantList CACHE_KEYS;
-
-    JsonType* getCacheAt( int level)
-    {
-        return CACHE.at( level);
-    }
-
-    int getCacheLevel( const QVariantList& keys)
-    {
-        int i = 0;
-        while (i < keys.size() && i < CACHE_KEYS.size() && keys.at(i) == CACHE_KEYS.at(i))
-            ++i;
-
-        return i - 1;                           // -1 means no cache. 0 means one level of cache.
-    }
-
-    void dropCacheAfterLevel( int level)
-    {
-        while (level < CACHE.size() - 1)
-        {
-            CACHE.removeLast();
-            CACHE_KEYS.removeLast();
-        }
-    }
-
-    void appendCache( const QVariant& key, JsonType* jsonType)
-    {
-        CACHE_KEYS.append( key);
-        CACHE.append( jsonType);
-    }
-};
-
 class Editor
 {
 private:
     JsonType* DATA = 0;
-    Cache CACHE;
 
     JsonType* createJsonTypeForKey( const QVariant& key) // Will provide the correct JsonType* object.
     {
@@ -640,7 +619,8 @@ private:
         for (int i = 0; i < keys.size() - 1; ++i)
         {
             parent = parent->insertWeak( keys.at(i), createJsonTypeForKey( keys.at( i + 1)));
-            if (parent == nullptr)                          // Abort if location doesn't exist.
+
+            if (parent == nullptr)                                                          // Abort if location doesn't exist.
                 return;
         }
 
@@ -663,44 +643,54 @@ private:
         if (jsonFrom == nullptr)
             return false;
 
-        if (jsonFrom->hasType == Type::Value)
+        if (jsonFrom->hasType == Type::Value)                               // If it's a Value.
         {
             QVariant sourceValue = static_cast<JsonValue*>(jsonFrom)->VALUE;
             JsonType* jsonValue = new JsonValue( sourceValue);
             jsonTo.insert( keysTo, jsonValue);
 
-            if (!keysTo.isEmpty())
-                keysTo.removeLast();
-        } else {
-            for (QVariant key : jsonFrom->keys())
+        } else if (jsonFrom->size() == 0) {                                 // If it's not a Value, it could be an empty Array or Object.
+            switch( jsonFrom->hasType)
+            {
+            case Type::Object: jsonTo.setEmptyObject( keysTo);  break;
+            case Type::Array:  jsonTo.setEmptyArray( keysTo);   break;
+            default: break;     // Can't happen. We've determined it's not a Value.
+            }
+        } else {                                                            // Else it's a non-empty Array or Object.
+            for (const QVariant& key : jsonFrom->keys())                    // Go through each of its children recursively.
             {
                 keysTo.append( key);
                 copyData( jsonFrom->value( key), jsonTo, keysTo);
             }
-            if (!keysTo.isEmpty())
-                keysTo.removeLast();
         }
+        if (!keysTo.isEmpty())
+            keysTo.removeLast();
+
         return true;
     }
 
-    JsonType* insert( const QVariantList& keys, JsonType* input)
+    void insert( const QVariantList& keys, JsonType* input)             // This was the most difficult-to-create function.
     {
         if (keys.isEmpty())
         {
+            if (input->hasType == Type::Value)                          // Root can't be set to a value. Nothing should happen.
+            {
+                qWarning("JsonWax-insert error: you attempted to save a value to the root of the JSON-document. This is impossible.");
+                return;
+            }
+
             delete DATA;
             DATA = input;
-            return DATA;
+            return;
         }
 
-        JsonType* parent = nullptr;
-
-        if (!keyMatchesJsonType( keys.first(), DATA))
+        if (!keyMatchesJsonType( keys.first(), DATA))                   // The root element is of a wrong type.
         {
             delete DATA;
             DATA = createJsonTypeForKey( keys.first());
         }
 
-        parent = DATA;
+        JsonType* parent = DATA;
         JsonType* fresh_element = nullptr;
 
         for (int i = 0; i < keys.size() - 1; ++i)                       // All but the last key.
@@ -708,11 +698,11 @@ private:
             fresh_element = createJsonTypeForKey( keys.at( i + 1));     // This object could be deleted immediately below, which is a waste.
             parent = parent->insertWeak( keys.at(i), fresh_element);    // Reuses existing arrays and objects (deletes fresh_element if unused).
 
-            if (parent == nullptr)                                      // Abort in case of failure.
-                return nullptr;
+            if (parent == nullptr)                                      // Abort in case of failure -- This really can't happen if the jsontype
+                return;                                                 // was created specifically for the key. Can it?
         }
         parent->insertStrong( keys.last(), input);                      // Overwrites the last location.
-        return parent;
+        return;
     }
 
 public:
@@ -724,6 +714,7 @@ public:
     ~Editor()
     {
         delete DATA;
+        DATA = 0;
     }
 
     typedef JsonWaxInternals::StringStyle StringStyle;
@@ -746,36 +737,35 @@ public:
         Editor tempEditor;
         JsonType* jsonFrom = getPointer(keysFrom);
 
-        if (jsonFrom == nullptr || jsonFrom->hasType == Type::Value)
+        if (jsonFrom == nullptr || (jsonFrom->hasType == Type::Value && keysTo.isEmpty()))      // This is because you can't copy a Value to root.
             return;
 
-        if (copyData( jsonFrom, tempEditor, tempKeysTo))                        // Copy into tempEditor
-            tempEditor.move({}, editor, keysTo);                                // Move to destination (overwrite if keysTo already exists).
+        if (copyData( jsonFrom, tempEditor, tempKeysTo))                                        // Copy into tempEditor
+            tempEditor.move({}, editor, keysTo);                                                // Move to destination (overwrite if keysTo already exists).
     }
 
     bool exists( const QVariantList& keys)
     {
-        if (keys.isEmpty())                                                     // The root object always exists.
+        if (keys.isEmpty())                                                                     // The root object always exists.
             return true;
 
-        JsonType* element = getPointer( keys.mid(0, keys.size() - 1));          // Uses all keys except the last.
+        JsonType* element = getPointer( keys.mid(0, keys.size() - 1));                          // Uses all keys except the last.
 
         if (element == nullptr)
             return false;
-        else
-            return (element->contains( keys.last())) ? true : false;
+        return (element->contains( keys.last())) ? true : false;
     }
 
     JsonType* getPointer( const QVariantList& keys)
     {
-        JsonType* element = DATA;
+        JsonType* element = DATA;                                                               // Sets the starting point.
 
         for (int i = 0; i < keys.size(); ++i)
         {
-            if (element->contains( keys.at(i)))
-                element = element->value( keys.at(i));
-            else
-                return nullptr;
+            element = element->value( keys.at(i));
+
+            if (element == nullptr)
+                break;
         }
         return element;
     }
@@ -820,8 +810,7 @@ public:
 
         if (element == nullptr)
             return QVariantList();
-        else
-            return element->keys();
+        return element->keys();
     }
 
     void move( const QVariantList& keysFrom, Editor* editorTo, const QVariantList& keysTo)
@@ -838,12 +827,10 @@ public:
 
         // Remove from source.
         if (keysFrom.isEmpty())
-        {
             DATA = new JsonObject();                                            // Not deleting.
-        } else {
+        else
             parent->removeWeak( keysFrom.last());                               // Remove from map, or replace with null in array
-        }                                                                       // (the weak version doesn't 'delete' the data).
-
+                                                                                // (the weak version doesn't 'delete' the data).
         // Put in destination.
         if (keysTo.isEmpty())
         {
@@ -888,12 +875,11 @@ public:
             return;
         }
 
-        JsonType* element = getPointer( keys.mid(0, keys.size() - 1));      // Uses all keys except the last.
+        JsonType* element = getPointer( keys.mid(0, keys.size() - 1));          // Uses all keys except the last.
 
         if (element == nullptr)
             return;
-        else
-            element->remove( keys.last());
+        element->remove( keys.last());
     }
 
     void setEmptyArray( const QVariantList& keys)
@@ -917,8 +903,7 @@ public:
 
         if (element == nullptr)
             return -1;
-        else
-            return element->size();
+        return element->size();
     }
 
     QByteArray toByteArray( const QVariantList& keys, StringStyle style, bool convertToCodePoints)
@@ -963,13 +948,10 @@ public:
 
     QVariant value( const QVariantList& keys, const QVariant& defaultValue)
     {
-        if (keys.isEmpty())
-            return defaultValue;
-
         JsonType* element = getPointer( keys);
 
         if (element == nullptr || element->hasType != Type::Value)      // Return default value if the found JsonType is not of type Value.
-            return defaultValue;
+            return defaultValue;                                        // (Root can't have a value, since it's either an Object or Array.)
 
         return static_cast<JsonValue*>(element)->VALUE;                 // Else cast to JsonValue and return its VALUE.
     }
