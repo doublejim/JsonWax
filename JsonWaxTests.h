@@ -440,7 +440,7 @@ public:
             timer.start();
             QJsonArray array = qtjson.array();
 
-            bool value1;
+            bool value1 = false;
             for (int i = 0; i < array.size(); ++i)
                 value1 = array.at(i).toBool();
 
@@ -451,7 +451,7 @@ public:
             int jsonWaxTimeSpent = 0;
             QElapsedTimer timer2;
             timer2.start();
-            bool value2;
+            bool value2 = false;
             for (int i = 0; i < json.size(); ++i)
                 value2 = json.value({i}).toBool();
             jsonWaxTimeSpent = timer2.nsecsElapsed();
@@ -463,7 +463,7 @@ public:
                 justAList.append(true);
             QElapsedTimer timer3;
             timer3.start();
-            bool value3;
+            bool value3 = false;
             for (int i = 0; i < 20000; ++i)
                 value3 = justAList.at(i).toBool();
             pureQListTimeSpent = timer3.nsecsElapsed();
@@ -495,7 +495,7 @@ public:
             QJsonObject obj4 = obj3.value("is").toObject();
             QJsonArray array = obj4.value("a").toArray();
 
-            bool value1;
+            bool value1 = false;
             for (int i = 0; i < array.size(); ++i)
                 value1 = array.at(i).toBool();
 
@@ -512,7 +512,7 @@ public:
             int jsonWaxTimeSpent = 0;
             QElapsedTimer timer2;
             timer2.start();
-            bool value2;
+            bool value2 = false;
             for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i) //
                 value2 = json.value({"hello","world","this","is","a",i}).toBool();
 
@@ -973,7 +973,7 @@ public:
 
         {
             JsonWax json;
-            json.setValue({"alpha"}, 12345678901234567890 );
+            json.setValue({"alpha"}, 1234567890123456789 );
             json.setValue({"beta"},QChar('h'));
             json.setValue({"gamma"},char('h'));
             json.setValue({"hef"},uint(5));
@@ -1023,13 +1023,13 @@ public:
         {
             JsonWax json;
             json.setValue({"agora",0},"okay!");
-            json.setValue({"agora",2}, 16864846846848646465);
+            json.setValue({"agora",2}, 168648468468486464);
             json.setEmptyArray({"agora",3,"mister1"});
             json.setEmptyObject({"agora",4,"mister2"});
             json.setNull({"french","toast"});
             json.copy({},{"result"});
-            QString expectedString = "{\"agora\":[\"okay!\",null,16864846846848646465,{\"mister1\":[]},{\"mister2\":{}}],\"french\":{\"toast\":null},"
-                                     "\"result\":{\"agora\":[\"okay!\",null,16864846846848646465,{\"mister1\":[]},{\"mister2\":{}}],\"french\":{\"toast\":null}}}";
+            QString expectedString = "{\"agora\":[\"okay!\",null,168648468468486464,{\"mister1\":[]},{\"mister2\":{}}],\"french\":{\"toast\":null},"
+                                     "\"result\":{\"agora\":[\"okay!\",null,168648468468486464,{\"mister1\":[]},{\"mister2\":{}}],\"french\":{\"toast\":null}}}";
             description = "copy test 2. with empty objects and arrays";
             checkWax( json, expectedString, description, passCount, failCount);
         }
