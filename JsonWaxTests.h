@@ -25,7 +25,6 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include "JsonWax.h"
-#include "JsonWaxSerializerTests.h"
 
 namespace JsonWaxInternals {
 
@@ -513,7 +512,7 @@ public:
             QElapsedTimer timer2;
             timer2.start();
             bool value2 = false;
-            for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i) //
+            for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i)
                 value2 = json.value({"hello","world","this","is","a",i}).toBool();
 
             jsonWaxTimeSpent = timer2.nsecsElapsed();
@@ -973,7 +972,7 @@ public:
 
         {
             JsonWax json;
-            json.setValue({"alpha"}, 1234567890123456789 );
+            json.setValue({"alpha"}, 1234567890123456789LL ); // long long
             json.setValue({"beta"},QChar('h'));
             json.setValue({"gamma"},char('h'));
             json.setValue({"hef"},uint(5));
@@ -1023,7 +1022,7 @@ public:
         {
             JsonWax json;
             json.setValue({"agora",0},"okay!");
-            json.setValue({"agora",2}, 168648468468486464);
+            json.setValue({"agora",2}, 168648468468486464LL); // long long
             json.setEmptyArray({"agora",3,"mister1"});
             json.setEmptyObject({"agora",4,"mister2"});
             json.setNull({"french","toast"});
