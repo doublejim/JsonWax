@@ -43,7 +43,7 @@ class SerializerClass1 : public QObject
     Q_ENUMS(Enume1 Enume2)                                  // Required to store the enums.
 
 public:
-    SerializerClass1( QObject* parent = 0): QObject(parent){}
+    explicit SerializerClass1( QObject* parent = 0);
 
     enum Enume1 {Crab, Spider};
     enum Enume2 {Salmon, Trout, Mackerel};
@@ -71,7 +71,7 @@ class SerializerClass2 : public QObject
     Q_ENUMS(Enume1 Enume2)                                              // Required to store the enums.
 
 public:
-    SerializerClass2( QObject* parent = 0): QObject(parent){}
+    explicit SerializerClass2( QObject* parent = 0);
 
     enum Enume1 {Crab, Spider};
     enum Enume2 {Salmon, Trout, Mackerel};
@@ -972,12 +972,13 @@ public:
 
         {
             JsonWax json;
-            json.setValue({"alpha"}, 1234567890123456789LL ); // long long
+            json.setValue({"alpha"}, 12345678901234567890ULL ); // unsigned long long
             json.setValue({"beta"},QChar('h'));
             json.setValue({"gamma"},char('h'));
             json.setValue({"hef"},uint(5));
             json.setValue({"ief"},uchar(30));
-            QString expectedString = "{\"alpha\":12345678901234567890,\"beta\":\"h\",\"gamma\":104,\"hef\":5,\"ief\":30}";
+            json.setValue({"joo"}, 1234567890123456789LL ); // long long
+            QString expectedString = "{\"alpha\":12345678901234567890,\"beta\":\"h\",\"gamma\":104,\"hef\":5,\"ief\":30,\"joo\":1234567890123456789}";
             description = "setValue with unusual input.";
             checkWax( json, expectedString, description, passCount, failCount);
         }

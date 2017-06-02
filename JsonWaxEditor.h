@@ -676,6 +676,7 @@ private:
             if (input->hasType == Type::Value)                          // Root can't be set to a value. Nothing should happen.
             {
                 qWarning("JsonWax-insert error: you attempted to save a value to the root of the JSON-document. This is impossible.");
+                delete input;
                 return;
             }
 
