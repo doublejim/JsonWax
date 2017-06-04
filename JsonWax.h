@@ -44,7 +44,8 @@ public:
 
     JsonWax( const QString& fileName) : JsonWax()
     {
-        loadFile( fileName);
+        if (!loadFile( fileName))
+            qWarning("JsonWax-loadFile warning: the file doesn't exist: \"" + fileName.toUtf8() + "\"");
     }
 
     ~JsonWax()
@@ -185,10 +186,7 @@ public:
             qfile.setFileName( fileName);
 
         if (!qfile.exists())
-        {
-            qWarning("JsonWax-loadFile warning: the file doesn't exist: \"" + fileName.toUtf8() + "\"");
             return false;
-        }
 
         QTextStream in (&qfile);
         in.setCodec("UTF-8");

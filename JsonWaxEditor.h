@@ -493,6 +493,7 @@ public:
     {
         if (!isValidKey( key))      // Can I just assume that it's valid?
         {
+            qWarning("JsonWax-insert error: invalid key.");
             delete fresh_element;
             return 0;
         }
@@ -675,7 +676,7 @@ private:
         {
             if (input->hasType == Type::Value)                          // Root can't be set to a value. Nothing should happen.
             {
-                qWarning("JsonWax-insert error: you attempted to save a value to the root of the JSON-document. This is impossible.");
+                qWarning("JsonWax-insert error: you can't save a value to root.");
                 delete input;
                 return;
             }
@@ -700,7 +701,10 @@ private:
             parent = parent->insertWeak( keys.at(i), fresh_element);    // Reuses existing arrays and objects (deletes fresh_element if unused).
 
             if (parent == nullptr)                                      // Abort in case of failure -- This really can't happen if the jsontype
+            {
+                qWarning("JsonWax-insert error: invalid key.");
                 return;                                                 // was created specifically for the key. Can it?
+            }
         }
         parent->insertStrong( keys.last(), input);                      // Overwrites the last location.
         return;
