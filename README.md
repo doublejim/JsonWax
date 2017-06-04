@@ -12,7 +12,7 @@ I have created easy-to-use functions for common operations such as: Setting/retr
 
 Furthermore, you can even serialize QObjects and other Qt data types to JSON. Both as readable strings (based on QTextStream), and as a Base64-encoded byte array (based on QDataStream).
 
-Unfortunately this ease of use comes at the price of being slower than QJsonDocument (3.3 to 4.7 times slower parse speed.)
+Unfortunately this ease of use comes at the price of being slower than QJsonDocument.
 
 #### You may use JsonWax under the terms of any of these licenses:
 
