@@ -27,7 +27,7 @@ namespace JsonWaxInternals
     enum Type {Value, Object, Array, Null};
     enum StringStyle {Compact, Readable};
 
-    static bool CONVERT_TO_CODE_POINTS = false;
+    static thread_local bool CONVERT_TO_CODE_POINTS = false;
 
 static void indent( QString& str, int indentation)
 {

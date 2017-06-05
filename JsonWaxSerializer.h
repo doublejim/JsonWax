@@ -28,13 +28,16 @@
 
 namespace JsonWaxInternals {
 
-static bool SERIALIZE_TO_EDITOR = false;
-static JsonWaxInternals::Editor* SERIALIZE_EDITOR = 0;
-static JsonWaxInternals::Editor* DESERIALIZE_EDITOR = 0;
-static QVariantList SERIALIZE_KEYS;
-static QVariantList DESERIALIZE_KEYS;
-static QTextStream READ_STREAM;
-static QTextStream WRITE_STREAM;
+// If these were just static, and not thread_local, the program would crash
+// when using the Serializer-class simultaneously from separate threads.
+
+static thread_local bool SERIALIZE_TO_EDITOR = false;
+static thread_local JsonWaxInternals::Editor* SERIALIZE_EDITOR = 0;
+static thread_local JsonWaxInternals::Editor* DESERIALIZE_EDITOR = 0;
+static thread_local QVariantList SERIALIZE_KEYS;
+static thread_local QVariantList DESERIALIZE_KEYS;
+static thread_local QTextStream READ_STREAM;
+static thread_local QTextStream WRITE_STREAM;
 
 class Serializer
 {
