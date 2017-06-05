@@ -19,6 +19,6 @@ Unfortunately this ease of use comes at the price of being slower than QJsonDocu
 * GNU General Public License version 2.0 | https://www.gnu.org/licenses/gpl-2.0.html
 * GNU General Public License version 3 | https://www.gnu.org/licenses/gpl-3.0.html
 
-### Could still use some more tests, but it seems stable now.
+### Could still use some more tests.
 
 See documentation on the website: https://doublejim.github.io/
