@@ -64,8 +64,8 @@ public:
     {
         QByteArray bytes;
         QDataStream stream( &bytes, QIODevice::WriteOnly);
-        stream.setVersion( QDataStream::Qt_5_7);
-        stream << input;
+        //stream.setVersion( QDataStream::Qt_5_7);                          // <--- Uncomment this line, if you want to lock the
+        stream << input;                                                    //      serialization to a specific version of Qt.
         return QString( bytes.toBase64());
     }
 
@@ -92,7 +92,8 @@ public:
     {                                                                       // for your QObject.
         QByteArray bytes = QByteArray::fromBase64( serializedBytes);
         QDataStream stream( &bytes, QIODevice::ReadOnly);
-        stream >> outputHere;
+        //stream.setVersion( QDataStream::Qt_5_7);                          // <--- Uncomment this line, if you want to lock the
+        stream >> outputHere;                                               //      deserialization to a specific version of Qt.
     }
 
     template <class T>
@@ -101,7 +102,8 @@ public:
         QByteArray bytes = QByteArray::fromBase64( serializedBytes);
         T result;
         QDataStream stream( &bytes, QIODevice::ReadOnly);
-        stream >> result;
+        //stream.setVersion( QDataStream::Qt_5_7);                          // <--- Uncomment this line, if you want to lock the
+        stream >> result;                                                   //      deserialization to a specific version of Qt.
         return result;
     }
 

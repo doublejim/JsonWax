@@ -721,8 +721,11 @@ public:
         }
 
         {
-            QString input = "[ 5e15, -554e1, -0.4E-67, 0.94, 7565E+56, 1E+0 ]";
-            QString expectedString = "[5e+15,-5540,-4e-68,0.94,7.565e+59,1]";
+            QString input = "[ 5e15, -554e1, -0.4E-67, 0.94, 7565E+56, 1E+0, -0,"
+                            "  -0.0, -0.1358, -8484682248465, 0.9876543210E+2, 9870e-1,"
+                            "  0, 1234567890.0123456, 123.0123456789]";
+            QString expectedString = "[5e+15,-5540,-4e-68,0.94,7.565e+59,1,0,0,-0.1358,-8484682248465,"
+                                     "98.7654321,987,0,1234567890.0123456,123.0123456789]";
             QString description = "Valid numbers.";
             run( input, expectedString, VALID, passCount, failCount, description);
             // Note: QVariant.toString() will introduce a + after the e.
@@ -794,51 +797,122 @@ public:
         {
             QString input = "{\n\"john\"  : 15.4.}";
             QString expectedString = "{\"john\":15.4}";
-            QString description = "Invalid number 0.";
-            run( input, expectedString, INVALID, passCount, failCount, description);
-        }
-
-        {
-            QString input = "{\n\"john\"  : .15}";
-            QString expectedString = "{}"; // Can't read any values.
             QString description = "Invalid number 1.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
 
         {
-            QString input = "{\n\"john\"  : .789}";
-            QString expectedString = "{}"; // Can't read any values.
+            QString input = "[ .159 ]";
+            QString expectedString = "{}"; // Can't read the value.
             QString description = "Invalid number 2.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "{\n\"john\"  : -0ee0}";
+            QString expectedString = "{}";
+            QString description = "Invalid number 3.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
 
         {
             QString input = "{\n\"john\"  : 78.9.2}";
             QString expectedString = "{\"john\":78.9}";
-            QString description = "Invalid number 3.";
-            run( input, expectedString, INVALID, passCount, failCount, description);
-        }
-
-        {
-            QString input = "{\n\"john\"  : ..123}";
-            QString expectedString = "{}"; // Can't read any values.
             QString description = "Invalid number 4.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
 
         {
-            QString input = "{\n\"john\"  : e12}";
-            QString expectedString = "{}"; // Can't read any values.
+            QString input = "{\n\"john\"  : ..123}";
+            QString expectedString = "{}"; // Can't read the value.
             QString description = "Invalid number 5.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
 
         {
-            QString input = "{\n\"john\"  : 5e1e5}";
-            QString expectedString = "{\"john\":50}";
+            QString input = "[ e12]";
+            QString expectedString = "{}"; // Can't read the value.
             QString description = "Invalid number 6.";
             run( input, expectedString, INVALID, passCount, failCount, description);
-            // Note: it reads 5e1, which is 50
+        }
+
+        {
+            QString input = "[ 5e1e5]";
+            QString expectedString = "[50]";
+            QString description = "Invalid number 7.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+            // Note: it reads 5e1, which is 50.
+        }
+
+        {
+            QString input = "[ -.9]";
+            QString expectedString = "{}";
+            QString description = "Invalid number 8.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ -0.9ea+1]";
+            QString expectedString = "{}";
+            QString description = "Invalid number 9.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ -0.9E9f]";
+            QString expectedString = "[-9e+8]";
+            QString description = "Invalid number 10.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ -9.5165-1]";
+            QString expectedString = "[-9.5165]";
+            QString description = "Invalid number 11.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ -9.5165+1]";
+            QString expectedString = "[-9.5165]";
+            QString description = "Invalid number 12.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ 077 ]";
+            QString expectedString = "[0]";
+            QString description = "Invalid number 13.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+            // Note: in JSON, the only number starting with 0, is 0.
+        }
+
+        {
+            QString input = "[ -1a ]";
+            QString expectedString = "[-1]";
+            QString description = "Invalid number 14.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ +1 ]";
+            QString expectedString = "{}";
+            QString description = "Invalid number 15.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ 1+1 ]";
+            QString expectedString = "[1]";
+            QString description = "Invalid number 16.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
+        }
+
+        {
+            QString input = "[ 100e ]";
+            QString expectedString = "{}";
+            QString description = "Invalid number 17.";
+            run( input, expectedString, INVALID, passCount, failCount, description);
         }
 
         {
@@ -942,6 +1016,7 @@ public:
         qDebug() << "----- Error messages from Editor tests: -----";
 
         {
+            qDebug() << "expects error message:";
             JsonWax json;
             json.setValue({"this","is","a","test"},"okay!");
             json.setValue({"this","is","a","shirt"},"no!");
@@ -998,6 +1073,7 @@ public:
         }
 
         {
+            qDebug() << "expects error message:";
             JsonWax json;
             json.setValue({}, "salmon");
             QString expectedString = "{}";
@@ -1006,6 +1082,7 @@ public:
         }
 
         {
+            qDebug() << "expects error message:";
             JsonWax json;
             json.setValue({"this","is","a","test"},"okay!");
             json.setValue({"this","is","a","shirt"},"no!");
@@ -1164,13 +1241,14 @@ public:
 
             json.setValue({1},true);
             json.setValue({2},false);
+            qDebug() << "expects error message:";
             json.setValue({-1},"hi");
             description = "setValue bool test.";
             checkWax( json.size({}) == 4, description, passCount, failCount);
             checkWax( json, QString("[null,true,false,\"valued space\"]"), description, passCount, failCount);
 
             description = "size/value consistency confirmation.";
-            checkWax( json.value({json.size({}) - 1}) == "valued space", description, passCount, failCount);
+            checkWax( json.value({json.size() - 1}) == "valued space", description, passCount, failCount);
 
             description = "keys test 1.";
             checkWax( json.keys({}) == QVariantList{0,1,2,3}, description, passCount, failCount);
