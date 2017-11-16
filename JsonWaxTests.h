@@ -39,7 +39,7 @@ class SerializerClass1 : public QObject
     Q_PROPERTY(Enume2 fish MEMBER m_enume2)
     Q_PROPERTY(QDate bestDate MEMBER m_date)
     Q_PROPERTY(QColor coolColor MEMBER m_color)
-    Q_PROPERTY(QImage imageAttempt MEMBER m_image)          // Can't save its data.
+    //Q_PROPERTY(QImage imageAttempt MEMBER m_image)          // Can't save its data.
     Q_ENUMS(Enume1 Enume2)                                  // Required to store the enums.
 
 public:
@@ -55,7 +55,7 @@ private:
     Enume2 m_enume2 = Trout;
     QDate m_date = QDate(1950,10,10);
     QColor m_color = QColor(15,16,16,255);
-    QImage m_image = QImage(512,512,QImage::Format_Mono);
+    //QImage m_image = QImage(512,512,QImage::Format_Mono);
 };
 
 class SerializerClass2 : public QObject
@@ -156,6 +156,39 @@ private:
     QImage m_image = QImage(512,512,QImage::Format_Mono);
 };
 
+class SerializerClass3 : public QObject
+{
+    Q_OBJECT
+public:
+    explicit SerializerClass3( QObject* parent = 0);
+};
+
+class SerializerClass4 : public QObject
+{
+    Q_OBJECT
+    Q_PROPERTY(QString name MEMBER m_name)
+    QString m_name = "integral";
+public:
+    explicit SerializerClass4( QObject* parent = 0);
+};
+
+
+inline JsonWaxInternals::SerializerClass1::SerializerClass1(QObject *parent)
+    : QObject(parent)
+{}
+
+inline JsonWaxInternals::SerializerClass2::SerializerClass2(QObject *parent)
+    : QObject(parent)
+{}
+
+inline JsonWaxInternals::SerializerClass3::SerializerClass3(QObject *parent)
+    : QObject(parent)
+{}
+
+inline JsonWaxInternals::SerializerClass4::SerializerClass4(QObject *parent)
+    : QObject(parent)
+{}
+
 // ----------------------------------------------------------------
 
 class Tests
@@ -238,6 +271,7 @@ private:
 public:
     static void speedTest()
     {
+        qDebug() << "Beginning speedTest.";
         // Search for json files.
         QString searchDirectory = qApp->applicationDirPath() + "/speedtest/";
         QStringList fileFilter;
@@ -246,6 +280,8 @@ public:
 
         // Load file contents.
         QList<QByteArray> fileContents;
+
+        qDebug() << "Reading files...";
 
         for (QString& fileName : fileNames)
         {
@@ -257,22 +293,37 @@ public:
         }
 
         {
-            // Measure time difference.
+            // In-time.
             int totalJsonWaxTime = 0;
             int totalJsonWaxFails = 0;
             int totalQtTime = 0;
             int totalQtFails = 0;
             int docNumber = 0;
 
+            // Out-time.
+            int totalJsonWaxOutIndented = 0, totalJsonWaxOutCompact = 0, totalJsonWaxOutBytes = 0,
+                totalQtOutIndented = 0, totalQtOutCompact = 0;
+
             for (QByteArray& bytes : fileContents)
             {
-                QElapsedTimer timer;
-                QElapsedTimer timer2;
+                QElapsedTimer timer, timer2, timer3, timer4, timer5, timer6, timer7;
 
                 JsonWax json;
-                timer.start();                              // TIME START
+                timer.start();                                      // FROM STRING START
                 bool res1 = json.fromByteArray( bytes);
-                totalJsonWaxTime += timer.nsecsElapsed();   // TIME END
+                totalJsonWaxTime += timer.nsecsElapsed();           // FROM STRING END
+
+                timer2.start();                                     // TO STRING INDENTED START
+                json.toString( JsonWax::Readable);
+                totalJsonWaxOutIndented += timer2.nsecsElapsed();   // TO STRING INDENTED END
+
+                timer3.start();                                     // TO STRING COMPACT START
+                json.toString( JsonWax::Compact);
+                totalJsonWaxOutCompact += timer3.nsecsElapsed();    // TO STRING COMPACT END
+
+                timer4.start();                                     // TO BYTES READABLE START
+                json.toByteArray( JsonWax::Readable);
+                totalJsonWaxOutBytes += timer4.nsecsElapsed();      // TO BYTES READABLE END
 
                 if (res1 != true)
                 {
@@ -283,25 +334,376 @@ public:
 
                 QJsonDocument doc;
                 QJsonParseError* isok = new QJsonParseError();
-                timer2.start();                             // TIME START
-                doc.fromJson( bytes, isok);
-                totalQtTime += timer2.nsecsElapsed();       // TIME END
+                timer5.start();                             // FROM STRING START
+                QJsonDocument doc2 = doc.fromJson( bytes, isok);
+                totalQtTime += timer5.nsecsElapsed();       // FROM STRING END
+
+                timer6.start();                             // TO INDENTED JSON START
+                doc2.toJson( QJsonDocument::Indented);
+                totalQtOutIndented += timer6.nsecsElapsed();        // TO INDENTED JSON END
+
+                timer7.start();                             // TO COMPACT JSON START
+                doc2.toJson( QJsonDocument::Compact);
+                totalQtOutCompact += timer7.nsecsElapsed();        // TO COMPACT JSON END
 
                 if (isok->error != 0)
                     ++totalQtFails;
 
                 delete isok;
-
                 ++docNumber;
             }
 
-            qDebug() << "----- Parsing/internalizing speed -----";
-            qDebug() << "Read:" << fileContents.size() << "files.";
-            qDebug() << "JsonWax invalid doc count:" << totalJsonWaxFails;
-            qDebug() << "JsonWax spent time:" << totalJsonWaxTime * 1e-6<< "ms";
-            qDebug() << "Qt invalid doc count:" << totalQtFails;
-            qDebug() << "Qt spent time:" << totalQtTime * 1e-6 << "ms";
-            qDebug() << "JsonWax vs Qt:" << 100.0 * totalJsonWaxTime / totalQtTime << "%\n";
+            qDebug() << "=======================";
+            qDebug() << "PARSE/INTERNALIZE SPEED";
+            qDebug() << "=======================";
+            qDebug() << "Files read:                     " << fileContents.size();
+            qDebug() << "JsonWax invalid doc count:      " << totalJsonWaxFails;
+            qDebug() << "JsonWax spent time:             " << totalJsonWaxTime * 1e-6 << "ms";
+            qDebug() << "QJsonDocument invalid doc count:" << totalQtFails;
+            qDebug() << "QJsonDocument spent time:       " << totalQtTime * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:                  " << 100.0 * totalJsonWaxTime / totalQtTime << "%\n";
+
+            qDebug() << "==========================";
+            qDebug() << "TO STRING SPEED (indented)";
+            qDebug() << "==========================";
+            qDebug() << "JsonWax:                          " << totalJsonWaxOutIndented * 1e-6 << "ms";
+            qDebug() << "QJsonDocument (to JSON ByteArray):" << totalQtOutIndented * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:                    " << 100.0 * totalJsonWaxOutIndented / totalQtOutIndented << "%\n";
+
+            qDebug() << "=========================";
+            qDebug() << "TO STRING SPEED (compact)";
+            qDebug() << "=========================";
+            qDebug() << "JsonWax:                          " << totalJsonWaxOutCompact * 1e-6 << "ms";
+            qDebug() << "QJsonDocument (to JSON ByteArray):" << totalQtOutCompact * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:                    " << 100.0 * totalJsonWaxOutCompact / totalQtOutCompact << "%\n";
+
+            qDebug() << "=============================";
+            qDebug() << "TO BYTEARRAY SPEED (indented) - TO BYTES VS TO STRING?";
+            qDebug() << "=============================";
+            qDebug() << "JsonWax:      " << totalJsonWaxOutBytes * 1e-6 << "ms";
+            qDebug() << "QJsonDocument:" << totalQtOutIndented * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:" << 100.0 * totalJsonWaxOutBytes / totalQtOutIndented << "%\n";
+        }
+
+        {   // READING ARRAY VALUES (DEPTH 0)
+            JsonWax json;
+
+            for (int i = 0; i < 20000; ++i)
+                json.setValue({i}, true);
+
+            QString documentAsString = json.toString( JsonWax::Compact);
+
+            // Qt read values.
+            int qtTimeSpent = 0;
+            {
+                QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
+                QElapsedTimer timer;
+                timer.start();
+                QJsonArray array = qtjson.array();
+
+                bool value = false;
+                for (int i = 0; i < array.size(); ++i)
+                    value = array.at(i).toBool();
+
+                qtTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // JsonWax read values.
+            int jsonWaxTimeSpent = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                bool value = false;
+                for (int i = 0; i < json.size(); ++i)
+                    value = json.value({i}).toBool();
+                jsonWaxTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // JsonWaxArray read values.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                bool value = false;
+                JWArray warray = json.toArray();
+                for (int i = 0; i < warray.size(); ++i)
+                    value = warray.value(i).toBool();
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // Pure QList read.
+            int pureQListTimeSpent = 0;
+            {
+                QList<QVariant> justAList;
+                for (int i = 0; i < 20000; ++i)
+                    justAList.append(true);
+                QElapsedTimer timer;
+                timer.start();
+                bool value = false;
+                for (int i = 0; i < justAList.size(); ++i)
+                    value = justAList.at(i).toBool();
+                pureQListTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            qDebug() << "=========================================";
+            qDebug() << "READ VALUES, JSON-ARRAY (array / depth 0)";
+            qDebug() << "=========================================";
+            qDebug() << "JsonWax full path:" << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWaxArray:     " << jsonWaxTimeSpent2 * 1e-6 << "ms";
+            qDebug() << "QJsonDocument:    " << qtTimeSpent * 1e-6 << "ms";
+            qDebug() << "QList<QVariant>:  " << pureQListTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:    " << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
+        }
+
+        {   // READING ARRAY VALUES (DEPTH 5)
+            JsonWax json;
+
+            for (int i = 0; i < 20000; ++i)
+                json.setValue({"hello","world","this","is","a",i}, "false");
+
+            QString documentAsString = json.toString( JsonWax::Compact);
+
+            // Qt read values.
+            int qtTimeSpent = 0;
+            {
+                QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
+                QElapsedTimer timer;
+                timer.start();
+                QJsonObject obj = qtjson.object().value("hello").toObject();
+                QJsonObject obj2 = obj.value("world").toObject();
+                QJsonObject obj3 = obj2.value("this").toObject();
+                QJsonObject obj4 = obj3.value("is").toObject();
+                QJsonArray array = obj4.value("a").toArray();
+
+                bool value = false;
+                for (int i = 0; i < array.size(); ++i)
+                    value = array.at(i).toBool();
+
+                qtTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // JsonWax read values.
+            int jsonWaxTimeSpent = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                bool value = false;
+                for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i)
+                    value = json.value({"hello","world","this","is","a",i}).toBool();
+                jsonWaxTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // JsonWaxArray read values.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                bool value = false;
+                JWArray array = json.toArray({"hello","world","this","is","a"});
+                for (int i = 0; i < array.size(); ++i)
+                    value = array.value(i).toBool();
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            qDebug() << "============================================================================";
+            qDebug() << "READ VALUES, JSON-ARRAY (object.object.object.object.object.array / depth 5)";
+            qDebug() << "============================================================================";
+            qDebug() << "JsonWax full path:" << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWaxArray:     " << jsonWaxTimeSpent2 * 1e-6 << "ms";
+            qDebug() << "QJsonDocument:    " << qtTimeSpent * 1e-6<< "ms";
+            qDebug() << "JsonWax vs Qt:    " << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
+        }
+
+        {   // READING OBJECT VALUES (DEPTH 0)
+            JsonWax json;
+
+            for (int i = 0; i < 20000; ++i)
+                json.setValue({QString::number(i)}, 1850);
+
+            QString documentAsString = json.toString( JsonWax::Compact);
+
+            // Qt read values.
+            int qtTimeSpent = 0;
+            {
+                QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
+                QElapsedTimer timer;
+                timer.start();
+                QJsonObject object = qtjson.object();
+
+                int value = 0;
+                for (int i = 0; i < object.size(); ++i)
+                    value = object.value(QString::number(i)).toInt();
+
+                qtTimeSpent = timer.nsecsElapsed();
+                Q_UNUSED(value)
+            }
+
+            // JsonWax read values.
+            int jsonWaxTimeSpent = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                int value = 0;
+                for (int i = 0; i < json.size(); ++i)
+                    value = json.value({QString::number(i)}).toInt();
+
+                jsonWaxTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // JsonWaxObject read values.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                int value = 0;
+                JWObject object = json.toObject({});
+                for (int i = 0; i < json.size(); ++i)
+                    value = object.value( QString::number(i)).toInt();
+
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+                Q_UNUSED(value)
+            }
+
+            qDebug() << "===========================================";
+            qDebug() << "READ VALUES, JSON-OBJECT (object / depth 0)";
+            qDebug() << "===========================================";
+            qDebug() << "JsonWax:      " << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWaxObject:" << jsonWaxTimeSpent2 * 1e-6 << "ms";
+            qDebug() << "QJsonDocument:" << qtTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
+        }
+
+        {   // READING OBJECT VALUES (DEPTH 5)
+            JsonWax json;
+
+            for (int i = 0; i < 20000; ++i)
+                json.setValue({"hello","world","this","is","a",QString::number(i)}, "false");
+
+            QString documentAsString = json.toString( JsonWax::Compact);
+
+            // Qt read values.
+            int qtTimeSpent = 0;
+            {
+                QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
+                QElapsedTimer timer;
+                timer.start();
+                QJsonObject obj = qtjson.object().value("hello").toObject();
+                QJsonObject obj2 = obj.value("world").toObject();
+                QJsonObject obj3 = obj2.value("this").toObject();
+                QJsonObject obj4 = obj3.value("is").toObject();
+                QJsonObject obj5 = obj4.value("a").toObject();
+
+                QString value;
+                for (int i = 0; i < obj5.size(); ++i)
+                    value = obj5.value( QString::number(i)).toString();
+
+                qtTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // JsonWax read values.
+            int jsonWaxTimeSpent = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                QString value;
+                for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i)
+                    value = json.value({"hello","world","this","is","a",QString::number(i)}).toString();
+                jsonWaxTimeSpent = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            // JsonWaxObject read values.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                QString value;
+                JWObject object = json.toObject({"hello","world","this","is","a"});
+                for (int i = 0; i < object.size(); ++i)
+                    value = object.value( QString::number(i)).toString();
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+
+                Q_UNUSED(value)
+            }
+
+            qDebug() << "==============================================================================";
+            qDebug() << "READ VALUES, JSON-OBJECT (object.object.object.object.object.object / depth 5)";
+            qDebug() << "==============================================================================";
+            qDebug() << "JsonWax full path:" << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWaxObject:    " << jsonWaxTimeSpent2 * 1e-6 << "ms";
+            qDebug() << "QJsonDocument:    " << qtTimeSpent * 1e-6<< "ms";
+            qDebug() << "JsonWax vs Qt:    " << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
+        }
+
+        {
+            // WRITING ARRAY VALUES (DEPTH 0)
+            int length = 20000;
+
+            // Qt write.
+            int qtTimeSpent = 0;
+            {
+                QJsonDocument qtjson;
+                QElapsedTimer timer;
+                timer.start();
+                QJsonArray array = qtjson.array();
+
+                for (int i = 0; i < length; ++i)
+                    array.insert( i, i);
+
+                qtjson.setArray( array);
+                qtTimeSpent = timer.nsecsElapsed();
+            }
+
+            // JsonWax write.
+            int jsonWaxTimeSpent = 0;
+            {
+                JsonWax json;
+                QElapsedTimer timer;
+                timer.start();
+                for (int i = 0; i < length; ++i)
+                    json.setValue({i}, i);
+                jsonWaxTimeSpent = timer.nsecsElapsed();
+            }
+
+            // WaxArray write.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                JsonWax json;
+                QElapsedTimer timer;
+                timer.start();
+                JWArray array = json.toArray({});
+                for (int i = 0; i < length; ++i)
+                    array.setValue( i, i);
+
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+            }
+
+            qDebug() << "==========================================";
+            qDebug() << "WRITE VALUES, JSON-ARRAY (array / depth 0)";
+            qDebug() << "==========================================";
+            qDebug() << "JsonWax:      " << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWaxObject:" << jsonWaxTimeSpent2 * 1e-6 << "ms";
+            qDebug() << "QJsonDocument:" << qtTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
         }
 
         {   // CHANGING VALUES OF OBJECTS (DEPTH 0)
@@ -312,31 +714,49 @@ public:
 
             QString documentAsString = json.toString( JsonWax::Compact);
 
-            // Qt change value of elements.
+            // Qt change values.
             int qtTimeSpent = 0;
-            QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
-            QElapsedTimer timer;
-            timer.start();
-            QJsonArray array = qtjson.array();
+            {
+                QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
+                QElapsedTimer timer;
+                timer.start();
+                QJsonArray array = qtjson.array();
 
-            for (int i = 0; i < array.size(); ++i)
-                array.replace(i, QJsonValue(170));
+                for (int i = 0; i < array.size(); ++i)
+                    array.replace(i, QJsonValue(170));
 
-            qtjson.setArray( array);
-            qtTimeSpent = timer.nsecsElapsed();
+                qtjson.setArray( array);
+                qtTimeSpent = timer.nsecsElapsed();
+            }
 
-            // JsonWax change value of elements.
+            // JsonWax change values.
             int jsonWaxTimeSpent = 0;
-            QElapsedTimer timer2;
-            timer2.start();
-            for (int i = 0; i < json.size(); ++i)
-                json.setValue({i}, 170);
-            jsonWaxTimeSpent = timer2.nsecsElapsed();
+            {
+                QElapsedTimer timer;
+                timer.start();
+                for (int i = 0; i < json.size(); ++i)
+                    json.setValue({i}, 170);
+                jsonWaxTimeSpent = timer.nsecsElapsed();
+            }
 
-            qDebug() << "----- Changing values (depth 0) speed -----";
-            qDebug() << "JsonWax spent time:" << jsonWaxTimeSpent * 1e-6<< "ms";
-            qDebug() << "Qt spent time:" << qtTimeSpent * 1e-6<< "ms";
-            qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent / qtTimeSpent << "%\n";
+            // JsonWax change values.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                JWArray warray = json.toArray();
+                for (int i = 0; i < warray.size(); ++i)
+                    warray.setValue( i, 180);
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+            }
+
+            qDebug() << "===========================================";
+            qDebug() << "CHANGE VALUES, JSON-ARRAY (array / depth 0)";
+            qDebug() << "===========================================";
+            qDebug() << "JsonWax full path:" << jsonWaxTimeSpent * 1e-6<< "ms";
+            qDebug() << "JsonWaxArray:     " << jsonWaxTimeSpent2 * 1e-6<< "ms";
+            qDebug() << "QJsonDocument:    " << qtTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWax vs Qt:    " << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
         }
 
         {   // CHANGING VALUES OF OBJECTS (DEPTH 2)
@@ -347,35 +767,53 @@ public:
 
             QString documentAsString = json.toString( JsonWax::Compact);
 
-            // Qt change value of elements.
+            // Qt change values.
             int qtTimeSpent = 0;
-            QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
-            QElapsedTimer timer;
-            timer.start();
-            QJsonObject obj = qtjson.object().value("hello").toObject();
-            QJsonArray array = obj.value("world").toArray();
+            {
+                QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
+                QElapsedTimer timer;
+                timer.start();
+                QJsonObject obj = qtjson.object().value("hello").toObject();
+                QJsonArray array = obj.value("world").toArray();
 
-            for (int i = 0; i < array.size(); ++i)
-                array.replace(i, QJsonValue("another thing"));
+                for (int i = 0; i < array.size(); ++i)
+                    array.replace(i, QJsonValue("another thing"));
 
-            obj.insert("world", array);
-            QJsonObject obj_root;
-            obj_root.insert("hello", obj);
-            qtjson.setObject( obj_root);
-            qtTimeSpent = timer.nsecsElapsed();
+                obj.insert("world", array);
+                QJsonObject obj_root;
+                obj_root.insert("hello", obj);
+                qtjson.setObject( obj_root);
+                qtTimeSpent = timer.nsecsElapsed();
+            }
 
-            // JsonWax change value of elements.
+            // JsonWax change value.
             int jsonWaxTimeSpent = 0;
-            QElapsedTimer timer2;
-            timer2.start();
-            for (int i = 0; i < json.size({"hello","world"}); ++i)
-                json.setValue({"hello","world",i}, "another thing");
-            jsonWaxTimeSpent = timer2.nsecsElapsed();
+            {
+                QElapsedTimer timer;
+                timer.start();
+                for (int i = 0; i < json.size({"hello","world"}); ++i)
+                    json.setValue({"hello","world",i}, "another thing");
+                jsonWaxTimeSpent = timer.nsecsElapsed();
+            }
 
-            qDebug() << "----- Changing values (depth 2) speed -----";
-            qDebug() << "JsonWax spent time:" << jsonWaxTimeSpent * 1e-6<< "ms";
-            qDebug() << "Qt spent time:" << qtTimeSpent * 1e-6<< "ms";
-            qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent / qtTimeSpent << "%\n";
+            // JsonWaxArray change values.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                JWArray warray = json.toArray({"hello","world"});
+                for (int i = 0; i < warray.size(); ++i)
+                    warray.setValue(i, "another thing 2");
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+            }
+
+            qDebug() << "=========================================================";
+            qDebug() << "CHANGE VALUES, JSON-ARRAY (object.object.array / depth 2)";
+            qDebug() << "=========================================================";
+            qDebug() << "JsonWax full path:" << jsonWaxTimeSpent * 1e-6<< "ms";
+            qDebug() << "JsonWaxArray:     " << jsonWaxTimeSpent2 * 1e-6<< "ms";
+            qDebug() << "QJsonDocument:    " << qtTimeSpent * 1e-6<< "ms";
+            qDebug() << "JsonWax vs Qt:    " << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
         }
 
         {   // CHANGING VALUES OF OBJECTS (DEPTH 5)
@@ -386,142 +824,60 @@ public:
 
             QString documentAsString = json.toString( JsonWax::Compact);
 
-            // Qt change value of elements.
+            // Qt change values.
             int qtTimeSpent = 0;
-            QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
-            QElapsedTimer timer;
-            timer.start();
-            QJsonObject obj = qtjson.object().value("hello").toObject();
-            QJsonObject obj2 = obj.value("world").toObject();
-            QJsonObject obj3 = obj2.value("this").toObject();
-            QJsonObject obj4 = obj3.value("is").toObject();
-            QJsonArray array = obj4.value("a").toArray();
+            {
+                QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
+                QElapsedTimer timer;
+                timer.start();
+                QJsonObject obj = qtjson.object().value("hello").toObject();
+                QJsonObject obj2 = obj.value("world").toObject();
+                QJsonObject obj3 = obj2.value("this").toObject();
+                QJsonObject obj4 = obj3.value("is").toObject();
+                QJsonArray array = obj4.value("a").toArray();
 
-            for (int i = 0; i < array.size(); ++i)
-                array.replace(i, QJsonValue(true));
+                for (int i = 0; i < array.size(); ++i)
+                    array.replace(i, QJsonValue(true));
 
-            obj4.insert("a", array);
-            obj3.insert("is", obj4);
-            obj2.insert("this", obj3);
-            obj.insert("world", obj2);
-            QJsonObject obj_root;
-            obj_root.insert("hello", obj);
-            qtjson.setObject( obj_root);
-            qtTimeSpent = timer.nsecsElapsed();
+                obj4.insert("a", array);
+                obj3.insert("is", obj4);
+                obj2.insert("this", obj3);
+                obj.insert("world", obj2);
+                QJsonObject obj_root;
+                obj_root.insert("hello", obj);
+                qtjson.setObject( obj_root);
+                qtTimeSpent = timer.nsecsElapsed();
+            }
 
-            // JsonWax change value of elements.
+            // JsonWax change values.
             int jsonWaxTimeSpent = 0;
-            QElapsedTimer timer2;
-            timer2.start();
-            for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i)
-                json.setValue({"hello","world","this","is","a",i}, true);
+            {
+                QElapsedTimer timer2;
+                timer2.start();
+                for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i)
+                    json.setValue({"hello","world","this","is","a",i}, true);
+                jsonWaxTimeSpent = timer2.nsecsElapsed();
+            }
 
-            jsonWaxTimeSpent = timer2.nsecsElapsed();
+            // JsonWaxArray change values.
+            int jsonWaxTimeSpent2 = 0;
+            {
+                QElapsedTimer timer;
+                timer.start();
+                JWArray warray = json.toArray({"hello","world","this","is","a"});
+                for (int i = 0; i < warray.size(); ++i)
+                    warray.setValue(i, false);
 
-            qDebug() << "----- Changing values (depth 5) speed -----";
-            qDebug() << "JsonWax spent time:" << jsonWaxTimeSpent * 1e-6<< "ms";
-            qDebug() << "Qt spent time:" << qtTimeSpent * 1e-6<< "ms";
-            qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent / qtTimeSpent << "%\n";
-        }
+                jsonWaxTimeSpent2 = timer.nsecsElapsed();
+            }
 
-        {   // READING VALUES (DEPTH 0)
-            JsonWax json;
-
-            for (int i = 0; i < 20000; ++i)
-                json.setValue({i}, 160);
-
-            QString documentAsString = json.toString( JsonWax::Compact);
-
-            // Qt change read of elements.
-            int qtTimeSpent = 0;
-            QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
-            QElapsedTimer timer;
-            timer.start();
-            QJsonArray array = qtjson.array();
-
-            bool value1 = false;
-            for (int i = 0; i < array.size(); ++i)
-                value1 = array.at(i).toBool();
-
-            qtjson.setArray( array);
-            qtTimeSpent = timer.nsecsElapsed();
-
-            // JsonWax read value of elements.
-            int jsonWaxTimeSpent = 0;
-            QElapsedTimer timer2;
-            timer2.start();
-            bool value2 = false;
-            for (int i = 0; i < json.size(); ++i)
-                value2 = json.value({i}).toBool();
-            jsonWaxTimeSpent = timer2.nsecsElapsed();
-
-            // Pure QList read.
-            int pureQListTimeSpent = 0;
-            QList<QVariant> justAList;
-            for (int i = 0; i < 20000; ++i)
-                justAList.append(true);
-            QElapsedTimer timer3;
-            timer3.start();
-            bool value3 = false;
-            for (int i = 0; i < 20000; ++i)
-                value3 = justAList.at(i).toBool();
-            pureQListTimeSpent = timer3.nsecsElapsed();
-
-            if (value1 + value2 + value3)                               // Just using it for something, to avoid "unused" warning.
-            qDebug() << "----- Reading values (depth 0) speed -----";
-            qDebug() << "JsonWax spent time:" << jsonWaxTimeSpent * 1e-6 << "ms";
-            qDebug() << "Qt spent time:" << qtTimeSpent * 1e-6 << "ms";
-            qDebug() << "pure QList spent time:" << pureQListTimeSpent * 1e-6 << "ms";
-            qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent / qtTimeSpent << "%\n";
-        }
-
-        {   // READING VALUES (DEPTH 5)
-            JsonWax json;
-
-            for (int i = 0; i < 20000; ++i)
-                json.setValue({"hello","world","this","is","a",i}, "false");
-
-            QString documentAsString = json.toString( JsonWax::Compact);
-
-            // Qt change value of elements.
-            int qtTimeSpent = 0;
-            QJsonDocument qtjson = QJsonDocument::fromJson( documentAsString.toUtf8() );
-            QElapsedTimer timer;
-            timer.start();
-            QJsonObject obj = qtjson.object().value("hello").toObject();
-            QJsonObject obj2 = obj.value("world").toObject();
-            QJsonObject obj3 = obj2.value("this").toObject();
-            QJsonObject obj4 = obj3.value("is").toObject();
-            QJsonArray array = obj4.value("a").toArray();
-
-            bool value1 = false;
-            for (int i = 0; i < array.size(); ++i)
-                value1 = array.at(i).toBool();
-
-            obj4.insert("a", array);
-            obj3.insert("is", obj4);
-            obj2.insert("this", obj3);
-            obj.insert("world", obj2);
-            QJsonObject obj_root;
-            obj_root.insert("hello", obj);
-            qtjson.setObject( obj_root);
-            qtTimeSpent = timer.nsecsElapsed();
-
-            // JsonWax change value of elements.
-            int jsonWaxTimeSpent = 0;
-            QElapsedTimer timer2;
-            timer2.start();
-            bool value2 = false;
-            for (int i = 0; i < json.size({"hello","world","this","is","a"}); ++i)
-                value2 = json.value({"hello","world","this","is","a",i}).toBool();
-
-            jsonWaxTimeSpent = timer2.nsecsElapsed();
-
-            if (value1 + value2 == false)                               // Just using it for something, to avoid "unused" warning.
-            qDebug() << "----- Reading values (depth 5) speed -----";
-            qDebug() << "JsonWax spent time:" << jsonWaxTimeSpent * 1e-6<< "ms";
-            qDebug() << "Qt spent time:" << qtTimeSpent * 1e-6<< "ms";
-            qDebug() << "JsonWax vs Qt:" << 100.0 * jsonWaxTimeSpent / qtTimeSpent << "%\n";
+            qDebug() << "==============================================================================";
+            qDebug() << "CHANGE VALUES, JSON-ARRAY (object.object.object.object.object.array / depth 5)";
+            qDebug() << "==============================================================================";
+            qDebug() << "JsonWax full path:" << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "JsonWaxArray:     " << jsonWaxTimeSpent2 * 1e-6<< "ms";
+            qDebug() << "QJsonDocument:    " << qtTimeSpent * 1e-6<< "ms";
+            qDebug() << "JsonWax vs Qt:    " << 100.0 * jsonWaxTimeSpent2 / qtTimeSpent << "%\n";
         }
 
         {   // SERIALIZE TO BASE64 BYTE ARRAY.
@@ -544,9 +900,11 @@ public:
             list = json.deserializeBytes<QList<QRect>>({0});
             jsonWaxTimeSpent2 = timer2.nsecsElapsed();
 
-            qDebug() << "----- serializeToBytes speed -----";
-            qDebug() << "Serialize JsonWax spent time: " << jsonWaxTimeSpent1 * 1e-6 << "ms";
-            qDebug() << "Deserialize JsonWax spent time: " << jsonWaxTimeSpent2 * 1e-6 << "ms\n";
+            qDebug() << "==================";
+            qDebug() << "SERIALIZE TO BYTES";
+            qDebug() << "==================";
+            qDebug() << "Serialize JsonWax:  " << jsonWaxTimeSpent1 * 1e-6 << "ms";
+            qDebug() << "Deserialize JsonWax:" << jsonWaxTimeSpent2 * 1e-6 << "ms\n";
         }
 
         {   // SERIALIZE TO JSON.
@@ -560,14 +918,16 @@ public:
             timer.start();
             json.serializeToJson({}, dateTimeList);
             jsonWaxTimeSpent = timer.nsecsElapsed();
-            qDebug() << "----- serializeToJson speed -----";
-            qDebug() << "Serialize JsonWax spent time: " << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "=================";
+            qDebug() << "SERIALIZE TO JSON";
+            qDebug() << "=================";
+            qDebug() << "Serialize JsonWax:  " << jsonWaxTimeSpent * 1e-6 << "ms";
 
             QElapsedTimer timer2;
             timer2.start();
             dateTimeList = json.deserializeJson<QList<QDateTime>>({});
             jsonWaxTimeSpent = timer2.nsecsElapsed();
-            qDebug() << "Deserialize JsonWax spent time: " << jsonWaxTimeSpent * 1e-6 << "ms\n";
+            qDebug() << "Deserialize JsonWax:" << jsonWaxTimeSpent * 1e-6 << "ms\n";
         }
 
         {   // COPY
@@ -578,8 +938,76 @@ public:
             timer.start();
             json.copy({"a"},{"b"});
             int jsonWaxTimeSpent = timer.nsecsElapsed();
-            qDebug() << "----- Copy speed -----";
-            qDebug() << "JsonWax copy spent time: " << jsonWaxTimeSpent * 1e-6 << "ms";
+            qDebug() << "====";
+            qDebug() << "COPY";
+            qDebug() << "====";
+            qDebug() << "JsonWax copy: " << jsonWaxTimeSpent * 1e-6 << "ms\n";
+        }
+
+        {   // READ VALUES : COMPARE USING JSONWAX AND WAXARRAY.
+
+            JsonWax json;
+            for (int i = 0; i < 2; ++i)
+                json.setValue({i}, i);
+            {
+                QElapsedTimer timer;
+                timer.start();
+                int value = 0;
+                for (int i = 0; i < 20000; ++i)
+                    value = json.value({0}).toInt();
+
+                int jsonWaxTime = timer.nsecsElapsed();
+                qDebug() << "======================================================";
+                qDebug() << "READ 1 ARRAY VALUE USING JSONWAX / WAXARRAY (depth 0)";
+                qDebug() << "The benefit of using WaxArray at every read.";
+                qDebug() << "======================================================";
+                qDebug() << "JsonWax:  " << jsonWaxTime * 1e-6 << "ms";
+                Q_UNUSED(value)
+            }
+            {
+                QElapsedTimer timer;
+                timer.start();
+                int value = 0;
+                for (int i = 0; i < 20000; ++i)
+                {
+                    JWArray array = json.toArray();
+                    value = array.value(0).toInt();
+                }
+                int waxArrayTime = timer.nsecsElapsed();
+                qDebug() << "WaxArray: " << waxArrayTime * 1e-6 << "ms\n";
+                Q_UNUSED(value)
+            }
+        }
+
+        {   // WRITE VALUES : COMPARE USING JSONWAX AND WAXARRAY.
+
+            JsonWax json;
+            for (int i = 0; i < 2; ++i)
+                json.setValue({i}, i);
+            {
+                QElapsedTimer timer;
+                timer.start();
+                for (int i = 0; i < 20000; ++i)
+                    json.setValue({0}, 0);
+
+                int jsonWaxTime = timer.nsecsElapsed();
+                qDebug() << "=======================================================";
+                qDebug() << "WRITE 1 ARRAY VALUE USING JSONWAX / WAXARRAY (depth 0)";
+                qDebug() << "The benefit of using WaxArray at every write.";
+                qDebug() << "=======================================================";
+                qDebug() << "JsonWax:  " << jsonWaxTime * 1e-6 << "ms";
+            }
+            {
+                QElapsedTimer timer;
+                timer.start();
+                for (int i = 0; i < 20000; ++i)
+                {
+                    JWArray array = json.toArray();
+                    array.setValue( 0, 0);
+                }
+                int waxArrayTime = timer.nsecsElapsed();
+                qDebug() << "WaxArray: " << waxArrayTime * 1e-6 << "ms\n";
+            }
         }
     }
 
@@ -745,6 +1173,7 @@ public:
                                "\"test6\":12345678901,\"test7\":12345678901e0,\"test8\":12345678901e80,"
                                "\"test9\":15.6e+46,\"test10\":2147483647,\"test11\":2147483648,"
                                "\"test12\":-2147483647,\"test13\":-2147483648}");
+
             QString description = "Number type interpretation.";
             checkWax((QString(json.value({"test1"}).typeName()) == "int"), description, passCount, failCount);
             checkWax((QString(json.value({"test2"}).typeName()) == "double"), description, passCount, failCount);
@@ -803,7 +1232,7 @@ public:
 
         {
             QString input = "[ .159 ]";
-            QString expectedString = "{}"; // Can't read the value.
+            QString expectedString = "[]"; // Can't read the value.
             QString description = "Invalid number 2.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
@@ -831,7 +1260,7 @@ public:
 
         {
             QString input = "[ e12]";
-            QString expectedString = "{}"; // Can't read the value.
+            QString expectedString = "[]"; // Can't read the value.
             QString description = "Invalid number 6.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
@@ -846,14 +1275,14 @@ public:
 
         {
             QString input = "[ -.9]";
-            QString expectedString = "{}";
+            QString expectedString = "[]";
             QString description = "Invalid number 8.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
 
         {
             QString input = "[ -0.9ea+1]";
-            QString expectedString = "{}";
+            QString expectedString = "[]";
             QString description = "Invalid number 9.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
@@ -896,7 +1325,7 @@ public:
 
         {
             QString input = "[ +1 ]";
-            QString expectedString = "{}";
+            QString expectedString = "[]";
             QString description = "Invalid number 15.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
@@ -910,7 +1339,7 @@ public:
 
         {
             QString input = "[ 100e ]";
-            QString expectedString = "{}";
+            QString expectedString = "[]";
             QString description = "Invalid number 17.";
             run( input, expectedString, INVALID, passCount, failCount, description);
         }
@@ -1149,21 +1578,21 @@ public:
             checkWax( json, expectedString, description, passCount, failCount);
         }
 
-        {
+        /*{
             JsonWax json;
             json.setValue({1, "det", "virker"}, "DOOD");
             json.setValue({0, "okay"}, "Bring");
             json.setValue({1, "mmongo"}, "it");
             json.move({0}, {2});
-            json.prepend({}, "g_1");
-            json.prepend({1}, "g_2");
-            json.prepend({4}, "g_4");
-            json.prepend({4}, "g_3");
+            //json.prepend({}, "g_1");                // ##################################################
+            //json.prepend({1}, "g_2");               // ##################################################
+            //json.prepend({4}, "g_4");               // ##################################################
+            //json.prepend({4}, "g_3");               // ##################################################
             QString expectedString = "[\"g_1\",[\"g_2\"],{\"det\":{\"virker\":\"DOOD\"},"
                                      "\"mmongo\":\"it\"},{\"okay\":\"Bring\"},[\"g_3\",\"g_4\"]]";
             description = "move and prepend things.";
             checkWax( json, expectedString, description, passCount, failCount);
-        }
+        }*/
 
         {
             JsonWax json;
@@ -1224,22 +1653,24 @@ public:
             checkWax( json.size({}) == 5, description, passCount, failCount);
             checkWax( json, QString("[\"value\",null,null,null,\"valued space\"]"), description, passCount, failCount);
 
-            json.append({}, "salmon");
+            /*
+            //json.append({}, "salmon"); // ##################################################
             description = "size/append test: append increases size by 1.";
             checkWax( json.size({}) == 6, description, passCount, failCount);
             checkWax( json, QString("[\"value\",null,null,null,\"valued space\",\"salmon\"]"), description, passCount, failCount);
 
-            json.popFirst({});
+            //json.popFirst({});    // ##################################################
             description = "size/pop_first test: pop decreases size by 1.";
             checkWax( json.size({}) == 5, description, passCount, failCount);
             checkWax( json, QString("[null,null,null,\"valued space\",\"salmon\"]"), description, passCount, failCount);
 
-            json.popLast({});
+            //json.popLast({});     // ##################################################
             description = "size/pop_last test: pop decreases size by 1.";
             checkWax( json.size({}) == 4, description, passCount, failCount);
             checkWax( json, QString("[null,null,null,\"valued space\"]"), description, passCount, failCount);
+            */
 
-            json.setValue({1},true);
+            /*json.setValue({1},true);
             json.setValue({2},false);
             qDebug() << "expects error message:";
             json.setValue({-1},"hi");
@@ -1265,27 +1696,30 @@ public:
             description = "keys/remove test.";
             checkWax( json.keys({"melt"}) == QVariantList{"a","c","d"}, description, passCount, failCount);
             checkWax( json, QString("{\"melt\":{\"a\":\"hello2\",\"c\":\"hello3\",\"d\":\"hello4\"}}"), description, passCount, failCount);
+            */
 
-            json.prepend({"melt","b"}, "consistency");
-            description = "prepend test 1.";
+
+            //json.prepend({"melt","b"}, "consistency");      // ##################################################
+            /*description = "prepend test 1.";
             checkWax( json.keys({"melt"}) == QVariantList{"a","b","c","d"}, description, passCount, failCount);
             checkWax( json, QString("{\"melt\":{\"a\":\"hello2\",\"b\":[\"consistency\"],\"c\":\"hello3\",\"d\":\"hello4\"}}"), description, passCount, failCount);
 
-            json.prepend({"melt","b"}, "consistency2");
+            //json.prepend({"melt","b"}, "consistency2");     // ##################################################
             description = "prepend test 2.";
             checkWax( json, QString("{\"melt\":{\"a\":\"hello2\",\"b\":[\"consistency2\",\"consistency\"],\"c\":\"hello3\",\"d\":\"hello4\"}}"), description, passCount, failCount);
 
-            json.append({"melt","b"}, "consistency3");
+            //json.append({"melt","b"}, "consistency3");        // ##################################################
             description = "append to array in object.";
             checkWax( json, QString("{\"melt\":{\"a\":\"hello2\",\"b\":[\"consistency2\",\"consistency\",\"consistency3\"],\"c\":\"hello3\",\"d\":\"hello4\"}}"), description, passCount, failCount);
+            */
 
-            json.move({"melt","b"}, {"melt","c"});
+            /*json.move({"melt","b"}, {"melt","c"});
             description = "move test 2.";
             checkWax( json, QString("{\"melt\":{\"a\":\"hello2\",\"c\":[\"consistency2\",\"consistency\",\"consistency3\"],\"d\":\"hello4\"}}"), description, passCount, failCount);
 
             json.remove({});
             description = "remove with empty keys removes everything.";
-            checkWax( json, QString("{}"), description, passCount, failCount);
+            checkWax( json, QString("{}"), description, passCount, failCount);*/
         }
 
         {
@@ -1294,25 +1728,25 @@ public:
             json.setValue({1,"giga","mark"}, "2");
             json.setValue({2,"ultra","mark"}, "3");
 
-            json.popLast({});
-            description = "array popping test 1.";
+            //json.popLast({});           // ##################################################
+            /*description = "array popping test 1.";
             checkWax( json, QString("[{\"mega\":{\"mark\":\"1\"}},{\"giga\":{\"mark\":\"2\"}}]"), description, passCount, failCount);
 
-            json.popFirst({});
+            //json.popFirst({});            // ##################################################
             description = "array popping test 2.";
             checkWax( json, QString("[{\"giga\":{\"mark\":\"2\"}}]"), description, passCount, failCount);
 
-            json.popLast({});
+            //json.popLast({});           // ##################################################
             description = "array popping test 3.";
             checkWax( json, QString("[]"), description, passCount, failCount);
 
-            json.popLast({});
+            //json.popLast({});           // ##################################################
             description = "array popping test 4: pop empty document.";
             checkWax( json, QString("[]"), description, passCount, failCount);
 
-            json.popFirst({});
+            //json.popFirst({});        // ##################################################
             description = "array popping test 5: pop empty document.";
-            checkWax( json, QString("[]"), description, passCount, failCount);
+            checkWax( json, QString("[]"), description, passCount, failCount);*/
         }
 
         {
@@ -1353,6 +1787,7 @@ public:
             checkWax( json.type({0,"one"}) == JsonWax::Value, description, passCount, failCount);
             checkWax( json.type({0,"not"}) == JsonWax::Null, description, passCount, failCount);
             checkWax( json.isNullValue({0,"not"}) == false, description, passCount, failCount);
+            checkWax( json.isNull({0,"not"}) == true, description, passCount, failCount);
             checkWax( json.type({1}) == JsonWax::Object, description, passCount, failCount);
             checkWax( json.isObject({1}), description, passCount, failCount);
             checkWax( json.type({1,"two"}) == JsonWax::Array, description, passCount, failCount);
@@ -1362,7 +1797,8 @@ public:
             checkWax( json.type({1,"two",2}) == JsonWax::Null, description, passCount, failCount);
             checkWax( json.type({"ding"}) == JsonWax::Null, description, passCount, failCount);
             json.setNull({2,"three"});
-            checkWax( json.isNullValue({2,"three"}), description, passCount, failCount);
+            checkWax( json.isNullValue({2,"three"}) == true, description, passCount, failCount);
+            checkWax( json.isNull({2,"three"}) == true, description, passCount, failCount);
         }
 
         {
@@ -1385,6 +1821,144 @@ public:
             checkWax( json, "[]", description, passCount, failCount);
             json.setEmptyObject({});
             checkWax( json, "{}", description, passCount, failCount);
+        }
+
+        // --------------- toJsonWax / WaxArray / WaxObject tests ---------------
+
+        {
+            JsonWax json;
+            json.setValue({"this","is","a","great",0}, "test");
+            JsonWax json2 = json.toJsonWax({"this","is","a"});
+            QString description = "JsonWax to JsonWax";
+            checkWax( json2, "{\"great\":[\"test\"]}", description, passCount, failCount);
+        }
+
+        {
+            JsonWax json;
+            json.setValue({"this",0}, "test");
+            qDebug() << "expects error message:";
+            JsonWax json2 = json.toJsonWax({"this",0});  // Not possible, since a value can't be root. It becomes unlinked.
+            json2.setValue({5,2}, "bingo");              // This isn't linked to the other editor. So it shouldn't have any effect on the "json"-data.
+            QString description = "Faulty JsonWax toJsonWax / unlinked. Everything should run anyway.";
+            checkWax( json, "{\"this\":[\"test\"]}", description, passCount, failCount);
+            checkWax( json2, "[null,null,null,null,null,[null,null,\"bingo\"]]", description, passCount, failCount);
+        }
+
+        {
+            JsonWax json;
+            json.setValue({"this",1}, "test");
+
+            JWArray array = json.toArray({"this"});
+            array.setValue(0, "great");
+            array.setValue(2, "for");
+            array.setValue(4, "humans");
+            array.setValue(3, "great");
+
+            QString description = "JWArray: setValue / value / toString.";
+
+            checkWax( array.value(1).toString() == "test", description, passCount, failCount);
+            checkWax( array.value(0).toString() == "great", description, passCount, failCount);
+            checkWax( array.value(5).toString() == "", description, passCount, failCount);          // it wasn't set to anything, so it's empty.
+            checkWax( array.toString(JsonWax::Compact) == "[\"great\",\"test\",\"for\",\"great\",\"humans\"]",
+                      description, passCount, failCount);
+            checkWax( json, "{\"this\":[\"great\",\"test\",\"for\",\"great\",\"humans\"]}", description, passCount, failCount);
+
+            JWObject object = array.toObject(2);
+            object.setValue( "cool", "boys");
+
+            JsonWax json2 = object.toJsonWax();
+
+            description = "WaxObject: setValue / value / toString.";
+            checkWax( object.value("cool").toString() == "boys", description, passCount, failCount);
+            checkWax( json, "{\"this\":[\"great\",\"test\",{\"cool\":\"boys\"},\"great\",\"humans\"]}", description, passCount, failCount);
+            checkWax( json2, "{\"cool\":\"boys\"}", description, passCount, failCount);
+            checkWax( object.toString( JsonWax::Compact) == "{\"cool\":\"boys\"}", description, passCount, failCount);
+            checkWax( array.toString( JsonWax::Compact) == "[\"great\",\"test\",{\"cool\":\"boys\"},\"great\",\"humans\"]",
+                      description, passCount, failCount);
+        }
+
+        {
+            JsonWax json1;
+            {
+                JsonWax json2;
+                json2.fromByteArray("{\"congrats\":[\"not\",\"fun\"], \"best\":[\"very\",\"great\"]}");
+                json1 = json2;
+            }
+            description = "JsonWax() = JsonWax().";
+            checkWax( json1, "{\"best\":[\"very\",\"great\"],\"congrats\":[\"not\",\"fun\"]}", description, passCount, failCount);
+
+            {
+                json1 = json1.toJsonWax().toObject().toJsonWax().toObject().toJsonWax();
+            }
+            description = "JsonWax to JWObject to JsonWax...";
+            checkWax( json1, "{\"best\":[\"very\",\"great\"],\"congrats\":[\"not\",\"fun\"]}", description, passCount, failCount);
+
+            {
+                JWArray jsonarr = json1.toArray({"congrats"});
+                jsonarr.setValue(4, true);
+                JsonWax json2 = jsonarr.toJsonWax();
+                json2.setValue({5}, 1900);
+            }
+            description = "JsonWax to JWArray, change, then back to JsonWax, then change.";
+            checkWax( json1, "{\"best\":[\"very\",\"great\"],\"congrats\":[\"not\",\"fun\",null,null,true,1900]}", description, passCount, failCount);
+
+            {
+                JWArray jsonarr = json1.toArray({"congrats"});
+                JsonWax json2 (jsonarr.toJsonWax());
+                json2.setValue({2}, 7);
+                description = "JsonWax to JWArray, then via constructor back to JsonWax, then change.";
+                checkWax( json1, "{\"best\":[\"very\",\"great\"],\"congrats\":[\"not\",\"fun\",7,null,true,1900]}", description, passCount, failCount);
+                checkWax( json2, "[\"not\",\"fun\",7,null,true,1900]", description, passCount, failCount);
+            }
+
+            {
+                JWObject obj = json1.toObject();
+                obj.setEmptyArray("hi");
+                obj.setEmptyArray("people");
+                obj.setEmptyObject("lord");
+                obj.setEmptyObject("hi");
+
+                description = "JWObject set empty array.";
+                checkWax( obj.toString(JsonWax::Compact) == "{\"best\":[\"very\",\"great\"],\"congrats\":[\"not\",\"fun\",7,null,true,1900],\"hi\":{},\"lord\":{},\"people\":[]}",
+                          description, passCount, failCount);
+                checkWax( json1, "{\"best\":[\"very\",\"great\"],\"congrats\":[\"not\",\"fun\",7,null,true,1900],\"hi\":{},\"lord\":{},\"people\":[]}",
+                          description, passCount, failCount);
+            }
+
+            {
+                JsonWax json;
+                json.fromByteArray("[\"liquid\",\"mental\",[\"daring\",[\"no\",\"pain\"],\"heartless\"]]");
+
+                JWArray array = json.toArray({2,1});
+                array.setEmptyArray(5);
+                JWArray array2 = array.toArray(5);
+                array2.setValue(1, "soothing");
+
+                description = "JsonWax to JWArray. Then set empty array. Convert to JWArray. Then setValue.";
+                checkWax( array2.toString(JsonWax::Compact) == "[null,\"soothing\"]", description, passCount, failCount);
+                checkWax( array.toString(JsonWax::Compact) == "[\"no\",\"pain\",null,null,null,[null,\"soothing\"]]", description, passCount, failCount);
+                checkWax( json, "[\"liquid\",\"mental\",[\"daring\",[\"no\",\"pain\",null,null,null,[null,\"soothing\"]],\"heartless\"]]", description, passCount, failCount);
+            }
+
+            {
+                json1.clear();
+                json1.setValue({"kolibri", "final", 9}, "truth");
+                JWObject json2 (json1.toObject({"kolibri", "final"}));
+                json2.setEmptyObject("here");
+                JWObject json3 = json2.toObject({"idea"});
+                json3.setValue("also", true);
+                JWObject json4 = json3.toObject({"here"});
+                json4.setValue("nice", false);
+                JsonWax json5 = json4.toJsonWax();
+                json5.setValue({"go","for"}, "test");
+
+                description = "JsonWax toObject + setValues repeatedly.";
+                checkWax( json5, "{\"go\":{\"for\":\"test\"},\"nice\":false}", description, passCount, failCount);
+                checkWax( json4.toString(JsonWax::Compact) == "{\"go\":{\"for\":\"test\"},\"nice\":false}", description, passCount, failCount);
+                checkWax( json3.toString(JsonWax::Compact) == "{\"also\":true,\"here\":{\"go\":{\"for\":\"test\"},\"nice\":false}}", description, passCount, failCount);
+                checkWax( json2.toString(JsonWax::Compact) == "{\"here\":{},\"idea\":{\"also\":true,\"here\":{\"go\":{\"for\":\"test\"},\"nice\":false}}}", description, passCount, failCount);
+                checkWax( json1, "{\"kolibri\":{\"final\":{\"here\":{},\"idea\":{\"also\":true,\"here\":{\"go\":{\"for\":\"test\"},\"nice\":false}}}}}", description, passCount, failCount);
+            }
         }
 
         qDebug() << "---------------------------------------------";
@@ -1561,25 +2135,62 @@ public:
         {   // Serialize QObjects
             JsonWax json;
             SerializerClass1 obj;
-            json.serializeToJson<SerializerClass1>({"perfect"}, obj);
-            obj.setProperty("superNumber", 20000);
-            json.deserializeJson<SerializerClass1>( obj, {"perfect"});
-            description = "Serialize and deserialize QObject as JSON (member).";
-            checkWax( obj.property("superNumber").toInt() == 1900000, description, passCount, failCount );
-            checkWax( obj.property("bestDate").toString() == "1950-10-10", description, passCount, failCount );
+            {
+                json.serializeToJson<SerializerClass1>({"perfect"}, obj);
+                obj.setProperty("superNumber", 20000);
+                json.deserializeJson<SerializerClass1>( obj, {"perfect"});
+                description = "Serialize and deserialize QObject as JSON (member).";
+                checkWax( obj.property("superNumber").toInt() == 1900000, description, passCount, failCount );
+                checkWax( obj.property("bestDate").toString() == "1950-10-10", description, passCount, failCount );
+            }
 
-            SerializerClass2 obj2;
-            json.serializeToJson<SerializerClass2>({"perfect2"}, obj2);
-            obj2.setProperty("superNumber", 20000);
-            json.deserializeJson<SerializerClass2>( obj2, {"perfect2"});
-            description = "Serialize and deserialize QObject as JSON (read write).";
-            checkWax( obj2.property("superNumber").toInt() == 1900000, description, passCount, failCount );
+            {
+                SerializerClass2 obj2;
+                json.serializeToJson<SerializerClass2>({"perfect2"}, obj2);
+                obj2.setProperty("superNumber", 20000);
+                json.deserializeJson<SerializerClass2>( obj2, {"perfect2"});
+                description = "Serialize and deserialize QObject as JSON (read write).";
+                checkWax( obj2.property("superNumber").toInt() == 1900000, description, passCount, failCount );
+            }
 
-            json.serializeToBytes<SerializerClass1>({"super neat"}, obj);
-            obj.setProperty("name", "not cool");
-            json.deserializeBytes<SerializerClass1>(obj, {"super neat"});
-            description = "Serialize and deserialize QObject as base64 byte array.";
-            checkWax( obj.property("name").toString() == "One\nWonderful Name", description, passCount, failCount );
+            {
+                json.serializeToBytes<SerializerClass1>({"super neat"}, obj);
+                obj.setProperty("name", "not cool");
+                json.deserializeBytes<SerializerClass1>(obj, {"super neat"});
+                description = "Serialize and deserialize QObject as base64 byte array.";
+                checkWax( obj.property("name").toString() == "One\nWonderful Name", description, passCount, failCount );
+            }
+
+            {
+                // Serialize/Deserialize empty QObject (it should just run without crashing).
+                SerializerClass3 obj3;
+                json.serializeToJson({"perfect3"}, obj3);
+                json.deserializeJson<SerializerClass3>( obj3, {"perfect3"});
+            }
+
+            {
+                SerializerClass4 obj4;
+                obj4.setProperty("alabama", "thousand");
+                json.serializeToJson({"perfect4"}, obj4);
+                obj4.setProperty("alabama", "nineteen");
+                json.deserializeJson<SerializerClass4>( obj4, {"perfect4"});
+                description = "Serialize/deserialize dynamic property (in QObject that also has normal property) as JSON.";
+                checkWax( obj4.property("alabama").toString() == "thousand", description, passCount, failCount );
+                checkWax( obj4.property("name").toString() == "integral", description, passCount, failCount );
+            }
+
+            {
+                SerializerClass4 obj5;
+                obj5.setProperty("alabama", "thousand");
+                obj5.setProperty("texas", 2000);
+                json.serializeToBytes({"perfect5"}, obj5);
+                obj5.setProperty("alabama", "nineteen");
+                json.deserializeBytes<SerializerClass4>( obj5, {"perfect5"});
+                description = "Serialize/deserialize dynamic properties (in QObject that also has normal property) as bytes.";
+                checkWax( obj5.property("alabama").toString() == "thousand", description, passCount, failCount );
+                checkWax( obj5.property("texas").toInt() == 2000, description, passCount, failCount );
+                checkWax( obj5.property("name").toString() == "integral", description, passCount, failCount );
+            }
         }
 
         {   // Serialize QList

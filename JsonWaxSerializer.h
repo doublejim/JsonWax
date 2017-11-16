@@ -8,6 +8,7 @@
  * GNU General Public License version 3         https://www.gnu.org/licenses/gpl-3.0.html
  */
 
+#include <QDebug>
 #include <QtGlobal>
 #include <QVariantList>
 #include <QObject>
@@ -24,43 +25,34 @@
 #ifdef QT_GUI_LIB
 #include <QColor>
 #endif
-#include "JsonWaxEditor.h"
+#include "JsonWaxEditors.h"
 
 namespace JsonWaxInternals {
 
-// If these were just static, and not thread_local, the program would crash
-// when using the Serializer-class simultaneously from separate threads.
+class MainEditor;
 
-static thread_local bool SERIALIZE_TO_EDITOR = false;
-static thread_local JsonWaxInternals::Editor* SERIALIZE_EDITOR = 0;
-static thread_local JsonWaxInternals::Editor* DESERIALIZE_EDITOR = 0;
-static thread_local QVariantList SERIALIZE_KEYS;
-static thread_local QVariantList DESERIALIZE_KEYS;
-static thread_local QTextStream READ_STREAM;
-static thread_local QTextStream WRITE_STREAM;
+// If this was just static, and not thread_local, the program would crash
+// when using the Serializer-class simultaneously from separate threads.
+struct SerialInOut
+{
+    bool SERIALIZE_TO_EDITOR = false;
+    JsonWaxInternals::MainEditor* SERIALIZE_EDITOR = 0;
+    JsonWaxInternals::MainEditor* DESERIALIZE_EDITOR = 0;
+    QVariantList SERIALIZE_KEYS;
+    QVariantList DESERIALIZE_KEYS;
+    QTextStream READ_STREAM;
+    QTextStream WRITE_STREAM;
+};
+extern thread_local SerialInOut SERIAL_IN_OUT;
 
 class Serializer
 {
 private:
-    void prepareEditor()
-    {
-        SERIALIZE_TO_EDITOR = false;        // This value will change if the type was serialized to the Editor.
-
-        SERIALIZE_KEYS = {0};
-
-        if (SERIALIZE_EDITOR == nullptr)
-            SERIALIZE_EDITOR = new JsonWaxInternals::Editor;
-        else
-            SERIALIZE_EDITOR->clear();
-    }
+    void prepareEditor();
 
 public:
-    Serializer(){}
-
-    ~Serializer(){
-        delete SERIALIZE_EDITOR;
-        SERIALIZE_EDITOR = nullptr;
-    }
+    Serializer();
+    ~Serializer();
 
     template <class T>
     QString serializeToBytes( const T& input)
@@ -73,25 +65,10 @@ public:
     }
 
     template <class T>
-    JsonWaxInternals::Editor* serializeToJson( const T& input)
-    {
-        prepareEditor();
-
-        QString serialized;
-        QTextStream stream( &serialized, QIODevice::WriteOnly);
-        stream << input;
-
-        // If the input was serialized to editor (fx. a QObject), "serialized" is still empty.
-        // All the JSON data has been stored in the SERIALIZE_EDITOR.
-
-        if (!SERIALIZE_TO_EDITOR)
-            SERIALIZE_EDITOR->setValue({0}, serialized);
-
-        return SERIALIZE_EDITOR;
-    }
+    JsonWaxInternals::MainEditor* serializeToJson( const T& input);
 
     template <class T>
-    void deserializeBytes( QByteArray serializedBytes, T& outputHere)       // If you don't want to create a copy constructor
+    void deserializeBytes( QByteArray serializedBytes, T& outputHere)       // This function is for if you don't want to create a copy constructor
     {                                                                       // for your QObject.
         QByteArray bytes = QByteArray::fromBase64( serializedBytes);
         QDataStream stream( &bytes, QIODevice::ReadOnly);
@@ -111,410 +88,95 @@ public:
     }
 
     template <class T>
-    void deserializeJson( JsonWaxInternals::Editor* editor, const QVariantList& keys, T& output)
-    {
-        DESERIALIZE_EDITOR = editor;                                        // QObject uses the data in the DESERIALIZE_EDITOR to set its properties.
-        DESERIALIZE_KEYS = keys;                                            // The keys are used to locate the properties, if it's a QObject,
-                                                                            // or the location, if it's a QMap or a QList.
-        QString serializedValue;                                            // serializedValue is used if the serialized data is just a string.
-
-        if (editor->isValue( keys))                                         // In case it's a one-line string value.
-            serializedValue = editor->value(keys, QString()).toString();
-
-        QTextStream stream( &serializedValue, QIODevice::ReadOnly);
-        stream >> output;
-    }
+    void deserializeJson( MainEditor* editor, const QVariantList& keys, T& output);
 };
 
 // =============================== READ/WRITE JSON ENTRIES ===============================
 
 template <class T>
-static T readFromDeEditor( QString entryName)
-{
-    QString strValue = DESERIALIZE_EDITOR->value( DESERIALIZE_KEYS + QVariantList{entryName}, QVariant()).toString();
-    READ_STREAM.setString( &strValue, QIODevice::ReadOnly);
-    T value;
-    READ_STREAM >> value;
-    return value;
-}
+static T readFromDeEditor( QString entryName);
 
 template <class T>
-static void writeToSeEditor( QString entryName, T value)
-{
-    QString strValue;
-    WRITE_STREAM.setString( &strValue, QIODevice::WriteOnly);
-    WRITE_STREAM << value;
-    SERIALIZE_EDITOR->setValue( SERIALIZE_KEYS + QVariantList{ entryName}, strValue);
-}
+static void writeToSeEditor( QString entryName, T value);
 
 // =============================== TEXTSTREAM OVERLOAD ===============================
 
 // QColor (only if project has QT += gui)
 #ifdef QT_GUI_LIB
-inline QTextStream& operator << (QTextStream &stream, const QColor &color)
-{
-    stream << "#";
-    stream << QString::number( color.alpha(), 16).rightJustified(2, '0');
-    stream << QString::number( color.red(), 16).rightJustified(2, '0');
-    stream << QString::number( color.green(), 16).rightJustified(2, '0');
-    stream << QString::number( color.blue(), 16).rightJustified(2, '0');
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QColor &color)
-{
-    QString sColor;
-    stream >> sColor;
-    color.setNamedColor( sColor);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QColor &color);
+QTextStream& operator >> (QTextStream &stream, QColor &color);
 #endif
 // QDate
 
-inline QTextStream& operator << (QTextStream &stream, const QDate &date)
-{
-    stream << date.toString(Qt::ISODate);
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QDate &date)
-{
-    QString sDate;
-    stream >> sDate;
-    date = QDate::fromString( sDate, Qt::ISODate);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QDate &date);
+QTextStream& operator >> (QTextStream &stream, QDate &date);
 
 // QTime
-
-inline QTextStream& operator << (QTextStream &stream, const QTime &time)
-{
-    #if (QT_VERSION >= 0x050800)
-    stream << time.toString(Qt::ISODateWithMs);     // This format is only available from Qt 5.8.
-    #else
-    stream << time.toString(Qt::ISODate) << '.' << time.msec();
-    #endif
-    //}
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QTime &time)
-{
-    QString value;
-    stream >> value;
-    #if (QT_VERSION >= 0x050800)
-    time = QTime::fromString( value, Qt::ISODateWithMs); // This format is only available from Qt 5.8.
-    #else
-    time = QTime::fromString( value, Qt::ISODate);
-    #endif
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QTime &time);
+QTextStream& operator >> (QTextStream &stream, QTime &time);
 
 // QDateTime
-
-inline QTextStream& operator << (QTextStream &stream, const QDateTime &dateTime)
-{
-    SERIALIZE_TO_EDITOR = true;
-
-    writeToSeEditor("date", dateTime.date());
-    writeToSeEditor("time", dateTime.time());
-    writeToSeEditor("timeSpec", dateTime.timeSpec());
-
-    switch(dateTime.timeSpec())
-    {
-    case Qt::LocalTime: case Qt::UTC:
-        // Do nothing more.
-        break;
-    case Qt::OffsetFromUTC:
-        writeToSeEditor("utcOffset", dateTime.offsetFromUtc());
-        break;
-    case Qt::TimeZone:
-        writeToSeEditor("timeZoneId", dateTime.timeZone().id());
-        break;
-    }
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QDateTime &dateTime)
-{
-    QDate date = readFromDeEditor<QDate>("date");
-    QTime time = readFromDeEditor<QTime>("time");
-    int timeSpec = readFromDeEditor<int>("timeSpec");
-
-    dateTime.setDate(date);
-    dateTime.setTime(time);
-
-    switch(Qt::TimeSpec(timeSpec))
-    {
-    case Qt::LocalTime:
-        // default time spec.
-        break;
-    case Qt::UTC:
-        dateTime.setTimeSpec( Qt::UTC);
-        break;
-    case Qt::OffsetFromUTC:
-    {
-        int offset = readFromDeEditor<int>("utcOffset");
-        dateTime.setOffsetFromUtc( offset);
-        break;
-    }
-    case Qt::TimeZone:
-    {
-        QByteArray bytesTimeZone = readFromDeEditor<QByteArray>("timeZoneId");
-        dateTime.setTimeZone( QTimeZone( bytesTimeZone));
-    }
-    }
-
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QDateTime &dateTime);
+QTextStream& operator >> (QTextStream &stream, QDateTime &dateTime);
 
 // QLine
-
-inline QTextStream& operator << (QTextStream &stream, const QLine &line)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("x1", line.x1());
-    writeToSeEditor("y1", line.y1());
-    writeToSeEditor("x2", line.x2());
-    writeToSeEditor("y2", line.y2());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QLine &line)
-{
-    int x1 = readFromDeEditor<int>("x1");
-    int y1 = readFromDeEditor<int>("y1");
-    int x2 = readFromDeEditor<int>("x2");
-    int y2 = readFromDeEditor<int>("y2");
-    line.setLine( x1, y1, x2, y2);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QLine &line);
+QTextStream& operator >> (QTextStream &stream, QLine &line);
 
 // QLineF
-
-inline QTextStream& operator << (QTextStream &stream, const QLineF &line)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("x1", line.x1());
-    writeToSeEditor("y1", line.y1());
-    writeToSeEditor("x2", line.x2());
-    writeToSeEditor("y2", line.y2());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QLineF &line)
-{
-    qreal x1 = readFromDeEditor<qreal>("x1");
-    qreal y1 = readFromDeEditor<qreal>("y1");
-    qreal x2 = readFromDeEditor<qreal>("x2");
-    qreal y2 = readFromDeEditor<qreal>("y2");
-    line.setLine( x1, y1, x2, y2);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QLineF &line);
+QTextStream& operator >> (QTextStream &stream, QLineF &line);
 
 // QObject
-
-inline QTextStream& operator << (QTextStream &stream, const QObject &obj)
-{
-    // This stores all the QObject properties in the SERIALIZE_EDITOR.
-
-    SERIALIZE_TO_EDITOR = true;
-
-    for (int i = 0; i < obj.metaObject()->propertyCount(); ++i)
-        if (obj.metaObject()->property(i).isStored( &obj))
-        {
-            QString name = QString( obj.metaObject()->property(i).name());
-            QString value = obj.metaObject()->property(i).read( &obj).toString();
-            SERIALIZE_EDITOR->setValue({0, name}, value);
-        }
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QObject &obj)
-{
-    // This inserts property values from a JSON-document into the QObject.
-    // The DESERIALIZE_EDITOR is a pointer to the main editor in "JsonWax.h".
-    // We find all the subkeys in that location, see if they are stored
-    // in the object, and insert them if they are.
-
-    for (QVariant& key : DESERIALIZE_EDITOR->keys({ DESERIALIZE_KEYS}))
-    {
-        int index = obj.metaObject()->indexOfProperty( key.toString().toUtf8());
-
-        if (index == -1)
-            return stream;
-
-        if (obj.metaObject()->property( index).isStored( &obj))
-        {
-            QVariant value = DESERIALIZE_EDITOR->value( DESERIALIZE_KEYS + QVariantList{key}, QVariant());
-            obj.metaObject()->property( index).write( &obj, value);
-        }
-    }
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QObject &obj);
+QTextStream& operator >> (QTextStream &stream, QObject &obj);
 
 // QPoint
-
-inline QTextStream& operator << (QTextStream &stream, const QPoint &point)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("x", point.x());
-    writeToSeEditor("y", point.y());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QPoint &point)
-{
-    int x = readFromDeEditor<int>("x");
-    int y = readFromDeEditor<int>("y");
-    point.setX( x);
-    point.setY( y);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QPoint &point);
+QTextStream& operator >> (QTextStream &stream, QPoint &point);
 
 // QPointF
-
-inline QTextStream& operator << (QTextStream &stream, const QPointF &point)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("x", point.x());
-    writeToSeEditor("y", point.y());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QPointF &point)
-{
-    qreal x = readFromDeEditor<qreal>("x");
-    qreal y = readFromDeEditor<qreal>("y");
-    point.setX( x);
-    point.setY( y);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QPointF &point);
+QTextStream& operator >> (QTextStream &stream, QPointF &point);
 
 // QRect
-
-inline QTextStream& operator << (QTextStream &stream, const QRect &rect)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("left", rect.left());
-    writeToSeEditor("top", rect.top());
-    writeToSeEditor("right", rect.right());
-    writeToSeEditor("bottom", rect.bottom());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QRect &rect)
-{
-    int left = readFromDeEditor<int>("left");
-    int top = readFromDeEditor<int>("top");
-    int right = readFromDeEditor<int>("right");
-    int bottom = readFromDeEditor<int>("bottom");
-    rect.setLeft( left);
-    rect.setTop( top);
-    rect.setRight( right);
-    rect.setBottom( bottom);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QRect &rect);
+QTextStream& operator >> (QTextStream &stream, QRect &rect);
 
 // QRectF
-
-inline QTextStream& operator << (QTextStream &stream, const QRectF &rect)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("left", rect.left());
-    writeToSeEditor("top", rect.top());
-    writeToSeEditor("right", rect.right());
-    writeToSeEditor("bottom", rect.bottom());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QRectF &rect)
-{
-    qreal left = readFromDeEditor<qreal>("left");
-    qreal top = readFromDeEditor<qreal>("top");
-    qreal right = readFromDeEditor<qreal>("right");
-    qreal bottom = readFromDeEditor<qreal>("bottom");
-    rect.setLeft( left);
-    rect.setTop( top);
-    rect.setRight( right);
-    rect.setBottom( bottom);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QRectF &rect);
+QTextStream& operator >> (QTextStream &stream, QRectF &rect);
 
 // QSize
-
-inline QTextStream& operator << (QTextStream &stream, const QSize &size)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("width", size.width());
-    writeToSeEditor("height", size.height());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QSize &size)
-{
-    int width = readFromDeEditor<int>("width");
-    int height = readFromDeEditor<int>("height");
-    size.setWidth( width);
-    size.setHeight( height);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QSize &size);
+QTextStream& operator >> (QTextStream &stream, QSize &size);
 
 // QUrl
-
-inline QTextStream& operator << (QTextStream &stream, const QUrl &url)
-{
-    stream << url.toString();
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QUrl &url)
-{
-    QString strUrl;
-    stream >> strUrl;
-    url = QUrl(strUrl);
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QUrl &url);
+QTextStream& operator >> (QTextStream &stream, QUrl &url);
 
 // QVariant
-
-inline QTextStream& operator << (QTextStream &stream, const QVariant &variant)
-{
-    SERIALIZE_TO_EDITOR = true;
-    writeToSeEditor("type", variant.type());
-    if (!variant.toString().isEmpty())
-         writeToSeEditor("value", variant.toString());
-    return stream;
-}
-
-inline QTextStream& operator >> (QTextStream &stream, QVariant &variant)
-{
-    int type = readFromDeEditor<int>({"type"});
-    QString value = readFromDeEditor<QString>({"value"});;
-    variant.setValue( value);
-    variant.convert( QVariant::Type( type));
-    return stream;
-}
+QTextStream& operator << (QTextStream &stream, const QVariant &variant);
+QTextStream& operator >> (QTextStream &stream, QVariant &variant);
 
 // QList
-
 template <class T>
 inline QTextStream& operator << (QTextStream &stream, const QList<T>& list)
 {
-    SERIALIZE_TO_EDITOR = true;
+    SERIAL_IN_OUT.SERIALIZE_TO_EDITOR = true;
 
     for (int i = 0; i < list.count(); ++i)
     {
-        SERIALIZE_KEYS.append(i);
+        SERIAL_IN_OUT.SERIALIZE_KEYS.append(i);
 
         QString value;
         QTextStream stream2( &value, QIODevice::WriteOnly);
         stream2 << list.at(i);                                              // This can be self-referential.
 
-        if (!SERIALIZE_EDITOR->exists( SERIALIZE_KEYS))                     // Check here, so that it doesn't overwrite (with an empty value).
-            SERIALIZE_EDITOR->setValue( SERIALIZE_KEYS, value);
+        if (!SERIAL_IN_OUT.SERIALIZE_EDITOR->exists( SERIAL_IN_OUT.SERIALIZE_KEYS))                     // This check is so that it doesn't overwrite with an empty value.
+            SERIAL_IN_OUT.SERIALIZE_EDITOR->setValue( SERIAL_IN_OUT.SERIALIZE_KEYS, value);
 
-        SERIALIZE_KEYS.removeLast();
+        SERIAL_IN_OUT.SERIALIZE_KEYS.removeLast();
     }
 
     return stream;
@@ -523,40 +185,41 @@ inline QTextStream& operator << (QTextStream &stream, const QList<T>& list)
 template <class T>
 inline QTextStream& operator >> (QTextStream &stream, QList<T>& list)
 {
-    for (QVariant& key : DESERIALIZE_EDITOR->keys({ DESERIALIZE_KEYS}))
-    {
-        DESERIALIZE_KEYS.append( key);
+    ArrayEditor arrayEditor = SERIAL_IN_OUT.DESERIALIZE_EDITOR->toArrayEditor( SERIAL_IN_OUT.DESERIALIZE_KEYS );
 
-        QString strValue = DESERIALIZE_EDITOR->value( DESERIALIZE_KEYS, QVariant()).toString();
+    for (int key = 0; key < arrayEditor.size(); ++key)
+    {
+        SERIAL_IN_OUT.DESERIALIZE_KEYS.append( key);
+
+        QString strValue = arrayEditor.value( key).toString();
         QTextStream stream2( &strValue, QIODevice::ReadOnly);
         T value;
         stream2 >> value;                                                   // This can be self-referential.
         list.append( value);
 
-        DESERIALIZE_KEYS.removeLast();
+        SERIAL_IN_OUT.DESERIALIZE_KEYS.removeLast();
     }
     return stream;
 }
 
 // QMap
-
 template <class T>
 inline QTextStream& operator << (QTextStream &stream, const QMap<QString, T>& map)
 {
-    SERIALIZE_TO_EDITOR = true;
+    SERIAL_IN_OUT.SERIALIZE_TO_EDITOR = true;
 
     for (const QString& key : map.keys())
     {
-        SERIALIZE_KEYS.append( key);
+        SERIAL_IN_OUT.SERIALIZE_KEYS.append( key);
 
         QString value;
         QTextStream stream2( &value, QIODevice::WriteOnly);
         stream2 << map.value( key);                                         // This can be self-referential.
 
-        if (!SERIALIZE_EDITOR->exists( SERIALIZE_KEYS))                     // Check here, so that it doesn't overwrite (with an empty value).
-            SERIALIZE_EDITOR->setValue( SERIALIZE_KEYS, value);
+        if (!SERIAL_IN_OUT.SERIALIZE_EDITOR->exists( SERIAL_IN_OUT.SERIALIZE_KEYS))                     // This check is so that it doesn't overwrite with an empty value.
+            SERIAL_IN_OUT.SERIALIZE_EDITOR->setValue( SERIAL_IN_OUT.SERIALIZE_KEYS, value);
 
-        SERIALIZE_KEYS.removeLast();
+        SERIAL_IN_OUT.SERIALIZE_KEYS.removeLast();
     }
 
     return stream;
@@ -565,17 +228,19 @@ inline QTextStream& operator << (QTextStream &stream, const QMap<QString, T>& ma
 template <class T>
 inline QTextStream& operator >> (QTextStream &stream, QMap<QString, T>& map)
 {
-    for (const QVariant& key : DESERIALIZE_EDITOR->keys({ DESERIALIZE_KEYS}))
-    {
-        DESERIALIZE_KEYS.append( key.toString());
+    ObjectEditor objectEditor = SERIAL_IN_OUT.DESERIALIZE_EDITOR->toObjectEditor( SERIAL_IN_OUT.DESERIALIZE_KEYS);
 
-        QString strValue = DESERIALIZE_EDITOR->value( DESERIALIZE_KEYS, QVariant()).toString();
+    for (const QString& key : objectEditor.keys())
+    {
+        SERIAL_IN_OUT.DESERIALIZE_KEYS.append( key);
+
+        QString strValue = objectEditor.value( key).toString();
         QTextStream stream2( &strValue, QIODevice::ReadOnly);
         T value;
         stream2 >> value;                                                   // This can be self-referential.
-        map.insert( key.toString(), value);
+        map.insert( key, value);
 
-        DESERIALIZE_KEYS.removeLast();
+        SERIAL_IN_OUT.DESERIALIZE_KEYS.removeLast();
     }
     return stream;
 }
@@ -583,25 +248,64 @@ inline QTextStream& operator >> (QTextStream &stream, QMap<QString, T>& map)
 // =============================== DATASTREAM OVERLOAD ===============================
 
 // QObject
+QDataStream& operator << (QDataStream &stream, const QObject &obj);
+QDataStream& operator >> (QDataStream &stream, QObject &obj);
 
-inline QDataStream& operator << (QDataStream &stream, const QObject &obj)
+// =========================================== DEFINED LATE ===========================================
+
+template <class T>
+static T readFromDeEditor( QString entryName)
 {
-    for (int i = 1; i < obj.metaObject()->propertyCount(); ++i)
-        if (obj.metaObject()->property(i).isStored( &obj))
-            stream << obj.metaObject()->property(i).read( &obj);
-    return stream;
+    ObjectEditor waxobject = SERIAL_IN_OUT.DESERIALIZE_EDITOR->toObjectEditor( SERIAL_IN_OUT.DESERIALIZE_KEYS);
+    QString strValue = waxobject.value( entryName).toString();
+    SERIAL_IN_OUT.READ_STREAM.setString( &strValue, QIODevice::ReadOnly);
+    T value;
+    SERIAL_IN_OUT.READ_STREAM >> value;
+    return value;
 }
 
-inline QDataStream& operator >> (QDataStream &stream, QObject &obj)
+template <class T>
+static void writeToSeEditor( QString entryName, T value)
 {
-    QVariant value;
-    for (int i = 1; i < obj.metaObject()->propertyCount(); ++i)
-        if (obj.metaObject()->property(i).isStored( &obj))
-        {
-            stream >> value;
-            obj.metaObject()->property(i).write( &obj, value);
-        }
-    return stream;
+    QString strValue;
+    SERIAL_IN_OUT.WRITE_STREAM.setString( &strValue, QIODevice::WriteOnly);
+    SERIAL_IN_OUT.WRITE_STREAM << value;
+
+    ObjectEditor waxobject = SERIAL_IN_OUT.SERIALIZE_EDITOR->toObjectEditor( SERIAL_IN_OUT.SERIALIZE_KEYS);
+    waxobject.setValue( entryName, strValue);
+}
+
+template <class T>
+inline JsonWaxInternals::MainEditor* Serializer::serializeToJson( const T& input)
+{
+    prepareEditor();
+
+    QString serialized;
+    QTextStream stream( &serialized, QIODevice::WriteOnly);
+    stream << input;
+
+    // If the input was serialized to editor (fx. a QObject), "serialized" is still empty.
+    // All the JSON data has been stored in the SERIALIZE_EDITOR.
+
+    if (!SERIAL_IN_OUT.SERIALIZE_TO_EDITOR)
+        SERIAL_IN_OUT.SERIALIZE_EDITOR->setValue({0}, serialized);
+
+    return SERIAL_IN_OUT.SERIALIZE_EDITOR;
+}
+
+template <class T>
+inline void Serializer::deserializeJson( MainEditor* editor, const QVariantList& keys, T& output)
+{
+    SERIAL_IN_OUT.DESERIALIZE_EDITOR = editor;                                                    // QObject uses the data in the DESERIALIZE_EDITOR to set its properties.
+    SERIAL_IN_OUT.DESERIALIZE_KEYS = keys;                                                        // The keys are used to locate the properties, if it's a QObject,
+                                                                                    // or the location, if it's a QMap or a QList.
+    QString serializedValue;                                                        // serializedValue is used if the serialized data is just a string.
+
+    if (SERIAL_IN_OUT.DESERIALIZE_EDITOR->isValue( keys))                                         // In case it's a one-line string value.
+        serializedValue = SERIAL_IN_OUT.DESERIALIZE_EDITOR->value( keys, QString()).toString();
+
+    QTextStream stream( &serializedValue, QIODevice::ReadOnly);
+    stream >> output;
 }
 
 }
