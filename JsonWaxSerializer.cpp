@@ -22,6 +22,8 @@ JsonWaxInternals::Serializer::~Serializer(){
     SERIAL_IN_OUT.SERIALIZE_EDITOR = nullptr;
 }
 
+// QColor (only if project has QT += gui)
+#ifdef QT_GUI_LIB
 QTextStream &JsonWaxInternals::operator <<(QTextStream &stream, const QColor &color)
 {
     stream << "#";
@@ -39,6 +41,7 @@ QTextStream &JsonWaxInternals::operator >>(QTextStream &stream, QColor &color)
     color.setNamedColor( sColor);
     return stream;
 }
+#endif
 
 QTextStream &JsonWaxInternals::operator <<(QTextStream &stream, const QDate &date)
 {
