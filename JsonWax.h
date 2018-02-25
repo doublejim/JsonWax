@@ -45,7 +45,7 @@ public:
     JsonWax( const QString& fileName) : JsonWax()
     {
         if (!loadFile( fileName))
-            qWarning("JsonWax-loadFile warning: the file doesn't exist: \"" + fileName.toUtf8() + "\"");
+            qWarning("JsonWax-loadFile warning: the file doesn't exist: \"%s\"", fileName.toStdString().c_str());
     }
 
     ~JsonWax()

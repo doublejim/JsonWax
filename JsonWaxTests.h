@@ -39,7 +39,7 @@ class SerializerClass1 : public QObject
     Q_PROPERTY(Enume2 fish MEMBER m_enume2)
     Q_PROPERTY(QDate bestDate MEMBER m_date)
     Q_PROPERTY(QColor coolColor MEMBER m_color)
-    Q_PROPERTY(QImage imageAttempt MEMBER m_image)          // Can't save its data.
+    // Q_PROPERTY(QImage imageAttempt MEMBER m_image)          // Can't save its data.
     Q_ENUMS(Enume1 Enume2)                                  // Required to store the enums.
 
 public:
@@ -55,7 +55,7 @@ private:
     Enume2 m_enume2 = Trout;
     QDate m_date = QDate(1950,10,10);
     QColor m_color = QColor(15,16,16,255);
-    QImage m_image = QImage(512,512,QImage::Format_Mono);
+    // QImage m_image = QImage(512,512,QImage::Format_Mono);
 };
 
 class SerializerClass2 : public QObject
@@ -1567,6 +1567,7 @@ public:
             description = "Serialize and deserialize QObject as JSON (member).";
             checkWax( obj.property("superNumber").toInt() == 1900000, description, passCount, failCount );
             checkWax( obj.property("bestDate").toString() == "1950-10-10", description, passCount, failCount );
+            checkWax( obj.property("name").toString() == "One\nWonderful Name", description, passCount, failCount );
 
             SerializerClass2 obj2;
             json.serializeToJson<SerializerClass2>({"perfect2"}, obj2);
@@ -1631,7 +1632,7 @@ public:
             JsonWax json;
             QMap<QString,QMap<QString,QSize>> mainMap;
             QMap<QString,QSize> submap1;
-            submap1.insert("122", QSize(15,16));
+            submap1.insert("12 2", QSize(15,16));
             submap1.insert("543", QSize(1200,16));
             QMap<QString,QSize> submap2;
             submap2.insert("7", QSize(140,12));
@@ -1643,6 +1644,43 @@ public:
             mainMap = json.deserializeJson<QMap<QString,QMap<QString,QSize>>>({"trueplay"});
             description = "Serialize and deserialize QMap<QString,QMap<QString,QSize>> as JSON.";
             checkWax( preMainMap == mainMap, description, passCount, failCount );
+        }
+
+        {   // Serialize QString
+            JsonWax json;
+            QString prestring = "20 mega tændstikker";
+            json.serializeToJson({"p lay"}, prestring);
+            QString poststring = json.deserializeJson<QString>({"p lay"});
+            description = "Serialize and deserialize QString as JSON.";
+            checkWax( prestring == poststring, description, passCount, failCount );
+        }
+
+        {   // Serialize various QString and QDate
+            JsonWax json;
+            QDate predate = QDate::currentDate();
+            json.serializeToJson({"EventData","EventDate"}, predate);
+            json.serializeToJson({"EventData","EventLocation"}, "GolfClub\nXYZ 測試 æøå");
+            json.serializeToJson({"EventData","ContactPerson"}, "Fr. Curie");
+            json.serializeToJson({"EventData","ContactPhone"}, "0172 123 45 67");
+
+            QDate postdate = json.deserializeJson<QDate>({"EventData","EventDate"});
+            QString out1 = json.deserializeJson<QString>({"EventData","EventLocation"});
+            QString out2 = json.deserializeJson<QString>({"EventData","ContactPerson"});
+            QString out3 = json.deserializeJson<QString>({"EventData","ContactPhone"});
+
+            checkWax( predate == postdate, description, passCount, failCount );
+            checkWax( "GolfClub\nXYZ 測試 æøå" == out1, description, passCount, failCount );
+            checkWax( "Fr. Curie" == out2, description, passCount, failCount );
+            checkWax( "0172 123 45 67" == out3, description, passCount, failCount );
+        }
+
+        {   // Serialize QStringList
+            JsonWax json;
+            QStringList prelist = {"20 mega tændstikker", "gold ", "pain And sacrifice"};
+            json.serializeToJson({"pepole"}, prelist);
+            QStringList postlist = json.deserializeJson<QStringList>({"pepole"});
+            description = "Serialize and deserialize QStringList as JSON.";
+            checkWax( prelist == postlist, description, passCount, failCount );
         }
 
         {   // Combine QMap and QList
@@ -1662,6 +1700,35 @@ public:
             data = json.deserializeJson<QMap<QString,QList<int>>>({"fully","functional"});
             description = "Serialize and deserialize QMap combined with QList as JSON.";
             checkWax( preData == data, description, passCount, failCount );
+        }
+
+        {   // Serialize QList<QVariant>
+
+            QList<QVariant> prelist;
+            prelist << "Mowgli test" << 5 << 456.5e+5;
+
+            JsonWax json;
+            json.serializeToJson({"hi t", "here"}, prelist);
+            QList<QVariant> postlist = json.deserializeJson<QList<QVariant>>({"hi t", "here"});
+            description = "Serialize QList<QVariant>.";
+            checkWax( prelist == postlist, description, passCount, failCount );
+        }
+
+        {   // Serialize int, double
+
+            JsonWax json;
+            json.serializeToJson({"h 1"}, 5);
+            json.serializeToJson({"h 2"}, 5.67);
+            json.serializeToJson({"h 3"}, 5.67e+9);
+
+            int post1 = json.deserializeJson<int>({"h 1"});
+            double post2 = json.deserializeJson<double>({"h 2"});
+            double post3 = json.deserializeJson<double>({"h 3"});
+            description = "Serialize int, double.";
+
+            checkWax( 5 == post1, description, passCount, failCount );
+            checkWax( 5.67 == post2, description, passCount, failCount );
+            checkWax( 5.67e+9 == post3, description, passCount, failCount );
         }
 
         qDebug() << "---------------------------------------------";
