@@ -1,6 +1,6 @@
 # JsonWax for Qt
 #### Note
-December 2017: I've made a big update, which will vastly improve performance. I have to recreate the documentation website, so it may take some weeks (6 months+).
+December 2017: I've made a big update, which will vastly improve performance. I have to recreate the documentation website, so it may take some weeks (12 months+).
 
 #### Description
 JsonWax is a Qt C++ library for handling JSON-documents. It's an alternative to Qt's built-in set of JSON classes, made for Qt 5.7 or later.
